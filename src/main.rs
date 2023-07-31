@@ -19,7 +19,7 @@
 #include "math.h"
 */
 
-use std::process::exit;
+use std::process::{exit,ExitCode};
 
 const NEWLINE:char = '\n';
 const ESCAPE_CHAR:char = '\x1b'; //'\033'
@@ -45,14 +45,14 @@ macro_rules! NEXT_CYCLIC_ELEMENT {
 }
 */
 
-fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> T
+fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
 {
     let next_i = curr_pos + 1;
     if next_i > container.len() {
-        container[0]
+        &container[0]
     }
     else {
-        container[next_i]
+        &container[next_i]
     }
 }
 
@@ -93,7 +93,7 @@ struct ansii_pattern_t {
 //    const unsigned int codes_count;
     codes_count : u32,
 //    const unsigned char ansii_codes[MAX_ANSII_CODES_COUNT];
-    ansii_codes : Vec<ansii_code_t>,
+    ansii_codes : &'static [ansii_code_t],
 }
 
 //#[derive(Default)]
@@ -101,7 +101,7 @@ struct color_pattern_t {
 //    const uint8_t stripes_count;
     stripes_count : u8,
 //    const uint32_t stripes_colors[MAX_FLAG_STRIPES];
-    stripes_colors : Vec<hex_color_t>,
+    stripes_colors : &'static [hex_color_t],
 //    const float factor;
     factor : f32,
 }
@@ -116,17 +116,20 @@ enum get_color_f_impl {
     Stripes
 }
 
+/*
 // inspo: https://stackoverflow.com/a/66714422/
 impl std::ops::Deref for get_color_f_impl {
-    type Target = get_color_f;
+    type Target = fn(&color_pattern_t, f32, &mut color_t); //get_color_f;
     fn deref(&self) -> &Self::Target {
         use get_color_f_impl::*;
-        &(match self {
-            Rainbow => get_color_rainbow,
-            Stripes => get_color_stripes,
-        })
+        let ret = match self {
+            Rainbow => &get_color_rainbow,
+            Stripes => &get_color_stripes,
+        };
+        return ret;
     }
 }
+*/
 
 /* Pattern. */
 struct pattern_t {
@@ -138,6 +141,16 @@ struct pattern_t {
     color_pattern: Option<color_pattern_t>,
 //    get_color_f *get_color;
     get_color: get_color_f_impl,
+}
+
+impl pattern_t {
+    fn get_color_getter(&self) -> get_color_f {
+        use get_color_f_impl::*;
+        match self.get_color {
+            Rainbow => get_color_rainbow,
+            Stripes => get_color_stripes,
+        }
+    }
 }
 
 /* *** A Single Global ***********************************************/
@@ -190,7 +203,7 @@ static flags:&[pattern_t] = &[
         name: "rainbow",
         ansii_pattern: ansii_pattern_t {
             codes_count: 30,
-            ansii_codes: vec![ 39, 38, 44, 43, 49, 48, 84, 83, 119, 118, 154, 148, 184, 178,
+            ansii_codes: &[ 39, 38, 44, 43, 49, 48, 84, 83, 119, 118, 154, 148, 184, 178,
                 214, 208, 209, 203, 204, 198, 199, 163, 164, 128, 129, 93, 99, 63, 69, 33 ]
         },
         color_pattern: None,
@@ -201,11 +214,11 @@ static flags:&[pattern_t] = &[
         name: "transgender",
         ansii_pattern: ansii_pattern_t {
             codes_count: 10,
-            ansii_codes: vec![81, 81, 217, 217,  231, 231,  217, 217,  81, 81]
+            ansii_codes: &[81, 81, 217, 217,  231, 231,  217, 217,  81, 81]
         },
-        color_pattern: color_pattern_t {
+        color_pattern: Some(color_pattern_t {
             stripes_count: 5,
-            stripes_colors: vec![
+            stripes_colors: &[
                 0x55cdfc, /* #55cdfc - Blue */
                 0xf7a8b8, /* #f7a8b8 - Pink */
                 0xffffff, /* #ffffff - White */
@@ -213,7 +226,7 @@ static flags:&[pattern_t] = &[
                 0x55cdfc  /* #55cdfc - Blue */
             ],
             factor: 4.0
-        }.into(),
+        }),
         get_color: get_color_f_impl::Stripes
     },
 /* todo! finish converting...
@@ -428,7 +441,7 @@ static flags:&[pattern_t] = &[
 ];
 
 //const int FLAG_COUNT = sizeof(flags)/sizeof(flags[0]);
-const FLAG_COUNT:usize = flags.len();
+//const FLAG_COUNT:usize = flags.len();
 
 /*
 /* *** Functions Declarations ****************************************/
@@ -449,20 +462,26 @@ static void print_color(const pattern_t *pattern, color_type_t color_type, int c
 */
 
 /* *** Functions *****************************************************/
-fn usage()
+fn usage(extra:Option<&str>) -> ExitCode
 {
+    if let Some(msg) = extra {
+        println!("{}",msg);
+    }
     print!("Usage: queercat [-h horizontal_speed] [-v vertical_speed] [--] [FILES...]\n");
-    exit(1);
+    //exit(1);
+    return ExitCode::FAILURE;
 }
 
-fn version()
+fn version() -> ExitCode
 {
-    todo!();
-//    wprintf("queercat version 2.0, (c) 2022 elsa002\n");
-    exit(0);
+// TODO update this
+    print!("queercat version 2.0, (c) 2022 elsa002\n");
+    //exit(0);
+    return ExitCode::SUCCESS;
 }
 
-fn build_helpstr() -> &'static str
+//fn build_helpstr() -> &'static str
+fn build_helpstr() -> String
 {
     //
     // consider instead:
@@ -485,7 +504,7 @@ fn build_helpstr() -> &'static str
         "  --vertical-frequency <d>, -v <d>: Vertical rainbow frequency (default: 0.1)\n",
         "              --offset <d>, -o <d>: Offset of the start of the flag\n",
         "                 --force-color, -F: Force color even when stdout is not a tty\n",
-        "             --no-force-locale, -l: Use encoding from system locale instead of\n",
+//        "             --no-force-locale, -l: Use encoding from system locale instead of\n",
         "                                    assuming UTF-8\n",
         "                      --random, -r: Random colors\n",
         "                       --24bit, -b: Output in 24-bit \"true\" RGB mode (slower and\n",
@@ -513,11 +532,9 @@ fn build_helpstr() -> &'static str
      */
     use std::iter::{once};
 
-//    let helpstr_flag_list:String =
-        once(helpstr_head).chain(
-        flags.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name).as_str())
-        ).chain(once(helpstr_tail)).collect::<String>().as_str()
-//    ;
+    let helpstr_flag_list:String =
+        flags.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name)).collect();
+    return format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail];
 //    return "";
 
 /*
@@ -575,12 +592,12 @@ static wint_t helpstr_hack(FILE * _ignored)
 }
 */
 
-fn lookup_pattern(name:&str) -> Option<&pattern_t>
+fn lookup_pattern(name:&str) -> Option<&'static pattern_t>
 {
     flags.iter().find(|f| f.name == name)
         .or_else(|| {
             let n:usize = str::parse(name).ok()
-                .filter(|n| *n < FLAG_COUNT)?;
+                .filter(|n| *n < flags.len())?;
             Some(&flags[n])
         })
 }
@@ -649,7 +666,7 @@ fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color
             let balance = 1.0 - ((theta - min_theta) / stripe_size);
             mix_colors(
                     color_pattern.stripes_colors[i],
-                    next_cyclic_element(&color_pattern.stripes_colors, i),
+                    *next_cyclic_element(&color_pattern.stripes_colors, i),
                     balance,
                     color_pattern.factor,
                     color);
@@ -658,7 +675,7 @@ fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color
     }
 }
 
-fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:u32, cc:u32)
+fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:u32, mut cc:u32)
 {
     use self::color_type_t::*;
     use std::f32::{MAX as f32MAX, consts::PI};
@@ -670,7 +687,7 @@ fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line
     let rand_offset_f:f32 = rand_offset as f32;
 
     let mut theta:f32;
-    let color:color_t = color_t { red: 0, green: 0, blue:0 };
+    let mut color:color_t = color_t { red: 0, green: 0, blue:0 };
 
     let mut ncc;
 
@@ -681,7 +698,7 @@ fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line
                 (offx + 2.0 * rand_offset_f / f32MAX) * PI;
 
             // TODO avoid unwrap() below
-            (pattern.get_color)(&pattern.color_pattern.unwrap(), theta, &mut color);
+            pattern.get_color_getter()(pattern.color_pattern.as_ref().unwrap(), theta, &mut color);
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
         },
 
@@ -695,14 +712,155 @@ fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line
                        pattern.ansii_pattern.ansii_codes[((rand_offset + cc) % pat_code_count) as usize]);
             }
         }
+        // TODO not this
         _ => { exit(1); }
     }
 }
 
-fn main() //-> u32
-{
-    let args = std::env::args().collect();
+// probably good enough?
+fn get_fake_random() -> u32 {
+    use std::time::*;
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().subsec_millis()
+}
 
+enum ParseArgsFail {
+    PrintUsage(Option<String>),
+    PrintVersion,
+}
+
+struct Settings {
+    file_names: Vec<String>, // "-" means "stdin"; default ["-"] 
+    flag: &'static pattern_t, // default flags[0] (rainbow)
+    horiz_freq: f64, // default 0.23
+    vert_freq: f64, // default 0.1
+    horiz_offset: f64, // default from (time_of_day.now.sec) % 300 /300 (?)
+    force_color: bool, // default from is_a_tty(stdout)
+//    force_locale: bool, // default true
+    color_type: color_type_t, // default ansii, flag for 24bit
+    enable_rand_offset: bool,
+    print_help: bool, // default false, ignores file_names if true
+}
+
+// TODO move these defaults somewhere better/that helpstr can see
+impl Default for Settings {
+    fn default() -> Self {
+        let color_default = atty::is(atty::Stream::Stdout);
+        Settings {
+            file_names: Vec::new(),
+            flag: &flags[0],
+            horiz_freq: 0.23,
+            vert_freq: 0.1,
+            horiz_offset: ((get_fake_random() % 300) / 300) as f64, // magic numbers from original version
+            force_color: color_default,
+//            force_locale: true,
+            color_type: color_type_t::COLOR_TYPE_ANSII,
+            enable_rand_offset: false,
+            print_help: false,
+        }
+    }
+}
+
+//fn parse_args<T: Iterator<Item = String>>(mut args:T) -> Result<Settings,ParseArgsFail> {
+fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArgsFail> {
+    let _ = args.next(); // discard exename in first element
+
+    macro_rules! usage {
+        ($i:tt) => {
+            PrintUsage(Some(format![$i]))
+        };
+    }
+
+    let mut settings = Settings::default();
+
+    while let Some(arg) = args.next() {
+        use ParseArgsFail::*;
+        match arg.as_str() {
+            flag if arg.starts_with('-') => match flag {
+                "-f" | "--flag" => {
+                    let next = args.next()
+                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    settings.flag = lookup_pattern(next.as_str())
+                        .ok_or(usage!["Unknown flag: '{next}'"])?;
+                },
+                "-h" | "--horizontal-frequency" => {
+                    let next = args.next()
+                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    settings.horiz_freq = next.parse()
+                        .or(Err(usage!["invalid {flag} value: {next}"]))?;
+                },
+                "-v" | "--vertical-frequency" => {
+                    let next = args.next()
+                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    settings.vert_freq = next.parse()
+                        .or(Err(usage!["invalid {flag} value: {next}"]))?;
+                },
+                "-o" | "--offset" => {
+                    let next = args.next()
+                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    settings.horiz_offset = next.parse()
+                        .or(Err(usage!["invalid {flag} value: {next}"]))?;
+                },
+                "-F" | "--force-color" => {
+                    settings.force_color = true;
+                },
+//                "-l" | "--no-force-locale" => {
+//                    settings.force_locale = false;
+//                },
+                "-r" | "--random" => {
+                    settings.enable_rand_offset = true;
+                },
+                "-b" | "--24bit" => {
+                    settings.color_type = color_type_t::COLOR_TYPE_24_BIT;
+                },
+                "--help" => {
+                    settings.print_help = true;
+                },
+                "--version" => {
+                    Err(PrintVersion)?;
+                },
+                "-" => {
+                    settings.file_names.push(arg);
+                },
+                "--" => {
+                    settings.file_names.extend(args);
+                    break; // above consumes the rest of args, and borrows args
+                },
+                _ => {
+                    //Err(PrintUsage(Some(format!["Unknown option: {flag}"])))?;
+                    Err(usage!["Unknown option: {flag}"])?;
+                }
+            },
+            _ => {
+                settings.file_names.push(arg);
+            }
+        }
+    }
+
+    // read stdin if no files specified
+    if settings.file_names.len() == 0 {
+        settings.file_names.push("-".into());
+    }
+
+    Ok(settings)
+}
+
+fn main() -> ExitCode
+{
+    let settings = match parse_args(std::env::args()) {
+        Ok(s) => s,
+        Err(ParseArgsFail::PrintUsage(msg)) => return usage(msg.as_deref()),
+        Err(ParseArgsFail::PrintVersion) => return version(),
+    };
+
+    let rand_offset =
+        if settings.enable_rand_offset {
+            get_fake_random()
+        } else { 0 };
+
+    //ExitCode::SUCCESS
+
+    // *
+    /*
     char* default_argv[] = { "-" };
     int cc = -1;
     int i = 0;
@@ -716,14 +874,17 @@ fn main() //-> u32
     double freq_h = 0.23;
     double freq_v = 0.1;
     char* flag_type = "rainbow";
+    */
 
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    double offx = (tv.tv_sec % 300) / 300.0;
+    //struct timeval tv;
+    //gettimeofday(&tv, NULL);
+    //double offx = (tv.tv_sec % 300) / 300.0;
 
-    build_helpstr();
+    // TODO lazify this
+    //build_helpstr();
 
     /* Handle flags. */
+    /*
     for (i = 1; i < argc; i++) {
         char* endptr;
         if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flag")) {
@@ -772,30 +933,34 @@ fn main() //-> u32
             break;
         }
     }
+    */
 
     /* Get pattern. */
-    const pattern_t *pattern = lookup_pattern(flag_type);
-    if (pattern == NULL) {
-        fprintf(stderr, "Invalid flag: %s\n", flag_type);
-        exit(1);
-    }
+    //const pattern_t *pattern = lookup_pattern(flag_type);
+    //if (pattern == NULL) {
+    //    fprintf(stderr, "Invalid flag: %s\n", flag_type);
+    //    exit(1);
+    //}
 
     /* Handle randomness. */
-    int rand_offset = 0;
-    if (random) {
-        srand(time(NULL));
-        rand_offset = rand();
-    }
+    //int rand_offset = 0;
+    //if (random) {
+    //    srand(time(NULL));
+    //    rand_offset = rand();
+    //}
 
     /* Get inputs. */
+    /*
     char** inputs = argv + i;
     char** inputs_end = argv + argc;
     if (inputs == inputs_end) {
         inputs = default_argv;
         inputs_end = inputs + 1;
     }
+    */
 
     /* Handle locale. */
+    /* // don't *think* we actually need/care about this?
     char* env_lang = getenv("LANG");
     if (force_locale && env_lang && !strstr(env_lang, "UTF-8")) {
         if (!setlocale(LC_ALL, "C.UTF-8")) { /* C.UTF-8 may not be available on all platforms */
@@ -804,8 +969,25 @@ fn main() //-> u32
     } else {
         setlocale(LC_ALL, "");
     }
+    */
+
+        if settings.print_help {
+            print!["{}",build_helpstr()];
+        }
+
+    fn colorizer(src: impl Iterator<Item = char>, settings: Settings) -> impl Iterator<Item = String>
+    {
+        let mut n = 0;
+        src.map(move |c| {
+            n += 1;
+            String::from(format!["{c}{n}"])
+        })
+    }
+
+    ExitCode::SUCCESS
 
     /* For file in inputs. */
+    /*
     for (char** filename = inputs; filename < inputs_end; filename++) {
         wint_t (*this_file_read_wchar)(FILE*); /* Used for --help because fmemopen is universally broken when used with fgetwc */
         FILE* f;
@@ -876,4 +1058,6 @@ fn main() //-> u32
             }
         }
     }
+    */
+    // */
 }
