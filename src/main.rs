@@ -845,6 +845,8 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
     Ok(settings)
 }
 
+//mod iter_test;
+
 fn main() -> ExitCode
 {
     let settings = match parse_args(std::env::args()) {
@@ -972,17 +974,50 @@ fn main() -> ExitCode
     }
     */
 
-        if settings.print_help {
-            print!["{}",build_helpstr()];
-        }
-
-    fn colorizer(src: impl Iterator<Item = char>, settings: Settings) -> impl Iterator<Item = String>
+    /* TODO -- will require modification of print_color
+    fn colorizer(src: impl Iterator<Item = char>, settings: Settings) -> impl Iterator<Item = char>
     {
         let mut n = 0;
-        src.map(move |c| {
+        src.flat_map(move |c| {
             n += 1;
-            String::from(format!["{c}{n}"])
+            format!["{c}{n}"] .chars().into_iter()
         })
+    }
+    */
+
+    use std::io::{self,Read,Cursor,stdin};
+    use std::fs::File;
+
+    //let files: dyn Iterator<Item=Box<dyn Read>> =
+    let files: Box<dyn Iterator<Item=io::Result<Box<dyn Read>>>> =
+        if settings.print_help
+        {
+            //vec![Box::new(Cursor::new(build_helpstr())))]
+            let r:Box<dyn Read> = Box::new(Cursor::new(build_helpstr()));
+            Box::new(std::iter::once(Ok(r)))
+        }
+        else
+        {
+            let file_iterator = settings.file_names.iter().map(|filename| -> io::Result<Box<dyn Read>> {
+                match filename.as_str() {
+                    "-" => Ok(Box::new(stdin())),
+                    _ => Ok(Box::new(File::open(filename)?))
+                }
+            });
+            Box::new(file_iterator)
+        };
+
+    for file in files {
+        let Ok(mut reader) = file else {
+            panic!["{:?}",file.err()];
+        };
+
+        // TODO actually colorize instead of just copy
+        let r = io::copy(&mut reader,&mut io::stdout());
+
+        if let Err(e) = r {
+            panic!["{:?}",e];
+        };
     }
 
     ExitCode::SUCCESS
