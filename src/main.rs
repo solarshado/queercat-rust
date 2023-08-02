@@ -744,7 +744,8 @@ struct Settings {
 // TODO move these defaults somewhere better/that helpstr can see
 impl Default for Settings {
     fn default() -> Self {
-        let color_default = atty::is(atty::Stream::Stdout);
+        use std::io::{stdout,IsTerminal};
+        let color_default = stdout().is_terminal();
         Settings {
             file_names: Vec::new(),
             flag: &flags[0],
