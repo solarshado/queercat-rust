@@ -48,7 +48,7 @@ macro_rules! NEXT_CYCLIC_ELEMENT {
 fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
 {
     let next_i = curr_pos + 1;
-    if next_i > container.len() {
+    if next_i >= container.len() {
         &container[0]
     }
     else {
@@ -83,10 +83,10 @@ struct color_t {
 
 /* Color type patterns. */
 enum color_type_t {
-    COLOR_TYPE_INVALID = -1,
-    COLOR_TYPE_ANSII = 0,
+//    COLOR_TYPE_INVALID = -1,
+    COLOR_TYPE_ANSII,// = 0,
     COLOR_TYPE_24_BIT,
-    COLOR_TYPE_COUNT
+//    COLOR_TYPE_COUNT
 }
 
 struct ansii_pattern_t {
@@ -462,22 +462,25 @@ static void print_color(const pattern_t *pattern, color_type_t color_type, int c
 */
 
 /* *** Functions *****************************************************/
-fn usage(extra:Option<&str>) -> ExitCode
+/*
+fn usage(extra:Option<String>) -> QueercatFatalError
 {
-    if let Some(msg) = extra {
+    if let Some(ref msg) = extra {
         println!("{}",msg);
     }
     print!("Usage: queercat [-h horizontal_speed] [-v vertical_speed] [--] [FILES...]\n");
     //exit(1);
-    return ExitCode::FAILURE;
+    //return ExitCode::FAILURE;
+    QueercatFatalError::BadCommandLine(extra)
 }
+*/
 
-fn version() -> ExitCode
+fn print_version() -> ()
 {
 // TODO update this
     print!("queercat version 2.0, (c) 2022 elsa002\n");
     //exit(0);
-    return ExitCode::SUCCESS;
+//    return ExitCode::SUCCESS;
 }
 
 //fn build_helpstr() -> &'static str
@@ -675,7 +678,7 @@ fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color
     }
 }
 
-fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:u32, mut cc:u32)
+fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:i32)
 {
     use self::color_type_t::*;
     use std::f32::{MAX as f32MAX, consts::PI};
@@ -686,10 +689,11 @@ fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line
 //    let offx_f:f32 = offx as f32;
     let rand_offset_f:f32 = rand_offset as f32;
 
-    let mut theta:f32;
+    let theta:f32;
     let mut color:color_t = color_t { red: 0, green: 0, blue:0 };
 
-    let mut ncc;
+    let mut cc:i32 = -1;
+    let ncc:i32;
 
     match color_type {
         COLOR_TYPE_24_BIT => {
@@ -704,16 +708,14 @@ fn print_color(pattern:&pattern_t, color_type:color_type_t, char_index:u32, line
 
         COLOR_TYPE_ANSII => {
             let pat_code_count = pattern.ansii_pattern.codes_count;
-            ncc = ((offx * (pat_code_count as f32)).round() as u32) +
-                ((char_index_f * freq_h + line_index_f * freq_v).trunc() as u32);
+            ncc = ((offx * (pat_code_count as f32)).round() as i32) +
+                ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
             if cc != ncc {
                 cc = ncc;
                 print!("{}[38;5;{}m", ESCAPE_CHAR,
-                       pattern.ansii_pattern.ansii_codes[((rand_offset + cc) % pat_code_count) as usize]);
+                       pattern.ansii_pattern.ansii_codes[((rand_offset + cc) % pat_code_count as i32) as usize]);
             }
         }
-        // TODO not this
-        _ => { exit(1); }
     }
 }
 
@@ -729,12 +731,12 @@ enum ParseArgsFail {
 }
 
 struct Settings {
-    file_names: Vec<String>, // "-" means "stdin"; default ["-"] 
+    file_names: Vec<String>, // "-" means "stdin"; default ["-"]
     flag: &'static pattern_t, // default flags[0] (rainbow)
-    horiz_freq: f64, // default 0.23
-    vert_freq: f64, // default 0.1
-    horiz_offset: f64, // default from (time_of_day.now.sec) % 300 /300 (?)
-    force_color: bool, // default from is_a_tty(stdout)
+    horiz_freq: f32, // default 0.23
+    vert_freq: f32, // default 0.1
+    horiz_offset: f32, // default from (time_of_day.now.sec) % 300 /300 (?)
+    enable_color: bool, // default from is_a_tty(stdout)
 //    force_locale: bool, // default true
     color_type: color_type_t, // default ansii, flag for 24bit
     enable_rand_offset: bool,
@@ -751,8 +753,8 @@ impl Default for Settings {
             flag: &flags[0],
             horiz_freq: 0.23,
             vert_freq: 0.1,
-            horiz_offset: ((get_fake_random() % 300) / 300) as f64, // magic numbers from original version
-            force_color: color_default,
+            horiz_offset: ((get_fake_random() % 300) / 300) as f32, // magic numbers from original version
+            enable_color: color_default,
 //            force_locale: true,
             color_type: color_type_t::COLOR_TYPE_ANSII,
             enable_rand_offset: false,
@@ -802,7 +804,7 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
                         .or(Err(usage!["invalid {flag} value: {next}"]))?;
                 },
                 "-F" | "--force-color" => {
-                    settings.force_color = true;
+                    settings.enable_color = true;
                 },
 //                "-l" | "--no-force-locale" => {
 //                    settings.force_locale = false;
@@ -845,19 +847,47 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
     Ok(settings)
 }
 
-//mod iter_test;
+enum QueercatFatalError
+{
+    BadCommandLine(Option<String>),
+    IoError(std::io::Error)
+}
 
-fn main() -> ExitCode
+impl From<std::io::Error> for QueercatFatalError
+{
+    fn from(value: std::io::Error) -> Self {
+        QueercatFatalError::IoError(value)
+    }
+}
+
+impl std::fmt::Debug for QueercatFatalError
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use QueercatFatalError::*;
+        match self {
+            BadCommandLine(msg) => {
+                if let Some(ref msg) = msg {
+                    writeln!(f,"{}",msg)?;
+                }
+                // TODO improve this message
+                writeln!(f, "Usage: queercat [-h horizontal_speed] [-v vertical_speed] [--] [FILES...]")
+            },
+            IoError(e) => e.fmt(f)
+        }
+    }
+}
+
+fn main() -> Result<(),QueercatFatalError>
 {
     let settings = match parse_args(std::env::args()) {
         Ok(s) => s,
-        Err(ParseArgsFail::PrintUsage(msg)) => return usage(msg.as_deref()),
-        Err(ParseArgsFail::PrintVersion) => return version(),
+        Err(ParseArgsFail::PrintUsage(msg)) => return Err(QueercatFatalError::BadCommandLine(msg)),
+        Err(ParseArgsFail::PrintVersion) => return Ok(print_version()),
     };
 
     let rand_offset =
         if settings.enable_rand_offset {
-            get_fake_random()
+            get_fake_random() as i32
         } else { 0 };
 
     //ExitCode::SUCCESS
@@ -985,7 +1015,7 @@ fn main() -> ExitCode
     }
     */
 
-    use std::io::{self,Read,Cursor,stdin};
+    use std::io::{self,Read,Cursor,stdin,BufReader,BufRead};
     use std::fs::File;
 
     //let files: dyn Iterator<Item=Box<dyn Read>> =
@@ -1008,19 +1038,53 @@ fn main() -> ExitCode
         };
 
     for file in files {
-        let Ok(mut reader) = file else {
-            panic!["{:?}",file.err()];
-        };
+        if !settings.enable_color {
+            let mut reader = file?;
+            let _ = io::copy(&mut reader,&mut io::stdout())?;
+            continue;
+        }
 
-        // TODO actually colorize instead of just copy
-        let r = io::copy(&mut reader,&mut io::stdout());
+        use escape_state_e::*;
 
-        if let Err(e) = r {
-            panic!["{:?}",e];
-        };
+        let mut reader = BufReader::new(file?);
+        let mut line_index = 0;
+        let mut escape_state:escape_state_e = ESCAPE_STATE_OUT;
+
+        let Settings {
+            flag: pattern,
+            horiz_freq: freq_h,
+            vert_freq: freq_v,
+            horiz_offset: offx,
+            ref color_type,
+            ..} = settings;
+
+        let mut line:String = Default::default();
+        while let Ok(read) = reader.read_line(&mut line) {
+            if read == 0 { break; }
+
+            for (char_index, current_char) in line.chars().enumerate() {
+                let char_index = char_index as u32;
+
+                find_escape_sequences(current_char, &mut escape_state);
+
+                if escape_state == ESCAPE_STATE_OUT {
+                    print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset);
+                }
+
+                print!("{current_char}");
+
+                if escape_state == ESCAPE_STATE_LAST {
+                    print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset);
+                }
+            }
+
+            line_index += 1;
+            line.clear();
+        }
+        print!("{}[0m",ESCAPE_CHAR);
     }
 
-    ExitCode::SUCCESS
+    Ok(())
 
     /* For file in inputs. */
     /*
