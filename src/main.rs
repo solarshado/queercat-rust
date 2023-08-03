@@ -1,27 +1,4 @@
-/*
-#define _XOPEN_SOURCE
-#define _GNU_SOURCE
 
-/* *** Includes ******************************************************/
-#include <stdbool.h>
-#include <ctype.h>
-#include <err.h>
-#include <errno.h>
-#include <locale.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <time.h>
-#include "math.h"
-*/
-
-use std::process::{exit,ExitCode};
-
-const NEWLINE:char = '\n';
 const ESCAPE_CHAR:char = '\x1b'; //'\033'
 
 /* Types */
@@ -37,14 +14,6 @@ enum escape_state_e {
 
 // #define NEXT_CYCLIC_ELEMENT(array, index, array_size) \
 //    (((index) + 1 == (array_size)) ? (array)[0] : (array)[((index) + 1)] )
-/*
-macro_rules! NEXT_CYCLIC_ELEMENT {
-    ($array:expr, $index:expr, $array_size:expr) => {
-        ( if (($index) + 1 == ($array_size)) { ($array)[0] } else { ($array)[(($index) + 1)] } )
-    };
-}
-*/
-
 fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
 {
     let next_i = curr_pos + 1;
@@ -60,13 +29,6 @@ fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
 macro_rules! IS_LETTER {
     ($c:ident) => { (('a' <= $c && $c <= 'z') || ('A' <= $c && $c <= 'Z')) }
 }
-
-/* *** Constants *****************************************************/
-
-const MAX_FLAG_STRIPES: usize = 6;
-const MAX_ANSII_CODES_PER_STRIPE: usize = 5;
-const MAX_ANSII_CODES_COUNT: usize = MAX_FLAG_STRIPES * MAX_ANSII_CODES_PER_STRIPE;
-const MAX_FLAG_NAME_LENGTH: u32 = 64;
 
 /* *** Types *********************************************************/
 /* Colors. */
@@ -89,6 +51,8 @@ enum color_type_t {
 //    COLOR_TYPE_COUNT
 }
 
+// TODO replace below struct with:
+//type ansii_pattern_t = &'static [ansii_code_t];
 struct ansii_pattern_t {
 //    const unsigned int codes_count;
     codes_count : u32,
@@ -96,19 +60,23 @@ struct ansii_pattern_t {
     ansii_codes : &'static [ansii_code_t],
 }
 
-//#[derive(Default)]
 struct color_pattern_t {
 //    const uint8_t stripes_count;
-    stripes_count : u8,
+//    stripes_count : u8, // unneeded
 //    const uint32_t stripes_colors[MAX_FLAG_STRIPES];
     stripes_colors : &'static [hex_color_t],
 //    const float factor;
     factor : f32,
 }
 
+impl color_pattern_t {
+    fn stripes_count(&self) -> usize {
+        self.stripes_colors.len()
+    }
+}
+
 /* Get color function. */
 //typedef void(get_color_f)(const color_pattern_t *color_pattern, float theta, color_t *color);
-//type get_color_f = dyn Fn(&color_pattern_t,&f32,&color_t);
 type get_color_f = fn(&color_pattern_t, f32, &mut color_t);
 
 enum get_color_f_impl {
@@ -116,22 +84,9 @@ enum get_color_f_impl {
     Stripes
 }
 
-/*
-// inspo: https://stackoverflow.com/a/66714422/
-impl std::ops::Deref for get_color_f_impl {
-    type Target = fn(&color_pattern_t, f32, &mut color_t); //get_color_f;
-    fn deref(&self) -> &Self::Target {
-        use get_color_f_impl::*;
-        let ret = match self {
-            Rainbow => &get_color_rainbow,
-            Stripes => &get_color_stripes,
-        };
-        return ret;
-    }
-}
-*/
-
 /* Pattern. */
+// TODO replace color_pattern + get_color with an enum {Rainbow,List}
+//      update impl block
 struct pattern_t {
 //    const char name[MAX_FLAG_NAME_LENGTH];
     name: &'static str,
@@ -160,44 +115,8 @@ impl pattern_t {
 //get_color_f get_color_rainbow;
 //get_color_f get_color_stripes;
 
-
-/* shelved experiment...
-macro_rules! arr {
-    ($({ $v: expr, $s: expr }),* $(,)?) => {
-        [
-            $(Arr { v: $v, s: $s }),*
-        ]
-    };
-}
-
-//inspo: https://users.rust-lang.org/t/array-of-structs-quick-like-c/83681/3
-macro_rules! patt_arry {
-    ($({ $(.$fn:ident = $val:expr),+ }),* $(,)?) => {
-        [
-            $(pattern_t { $($fn = $val),+ } ),*
-        ]
-    };
-}
-*/ /*
-const flergz:[pattern_t] = [
-    pattern_t {
-        name: "foo",
-        ansii_pattern: ansii_pattern_t {
-            codes_count: 1,
-            ansii_codes: [42],
-        },
-        color_pattern: color_pattern_t {
-            stripes_count: 0,
-            stripes_colors:[],
-            factor: 0.5,
-        },
-        get_color: get_color_rainbow,
-    }
-];
-*/
-
 /* *** Flags *********************************************************/
-//const flags:[pattern_t ] = patt_arry!{
+// TODO move to separate file
 static flags:&[pattern_t] = &[
     pattern_t {
         name: "rainbow",
@@ -217,7 +136,7 @@ static flags:&[pattern_t] = &[
             ansii_codes: &[81, 81, 217, 217,  231, 231,  217, 217,  81, 81]
         },
         color_pattern: Some(color_pattern_t {
-            stripes_count: 5,
+//            stripes_count: 5,
             stripes_colors: &[
                 0x55cdfc, /* #55cdfc - Blue */
                 0xf7a8b8, /* #f7a8b8 - Pink */
@@ -440,27 +359,6 @@ static flags:&[pattern_t] = &[
 */
 ];
 
-//const int FLAG_COUNT = sizeof(flags)/sizeof(flags[0]);
-//const FLAG_COUNT:usize = flags.len();
-
-/*
-/* *** Functions Declarations ****************************************/
-/* Info */
-static void usage(void);
-static void version(void);
-
-/* Helpers */
-static void build_helpstr(void);
-static void cleanup_helpstr(void);
-static void find_escape_sequences(wint_t current_char, escape_state_t *state);
-static wint_t helpstr_hack(FILE * _ignored);
-static const pattern_t * lookup_pattern(const char *name);
-
-/* Colors handling */
-static void mix_colors(uint32_t color1, uint32_t color2, float balance, float factor, color_t *output_color);
-static void print_color(const pattern_t *pattern, color_type_t color_type, int char_index, int line_index, double freq_h, double freq_v, double offx, int rand_offset, int cc);
-*/
-
 /* *** Functions *****************************************************/
 /*
 fn usage(extra:Option<String>) -> QueercatFatalError
@@ -492,6 +390,7 @@ fn build_helpstr() -> String
     //
     //use const_format::*;
 
+    // TODO pull the mentioned defaults here from the actual defaults used instead of repeating
     let helpstr_head = concat!["\n",
         "Usage: queercat [-f flag_number][-h horizontal_speed] [-v vertical_speed] [--] [FILES...]\n",
         "\n",
@@ -533,43 +432,13 @@ fn build_helpstr() -> String
      * would be nice to have the dynamic word-wrap back, but that's
      * more clever than I currently feel like trying to be
      */
-    use std::iter::{once};
 
     let helpstr_flag_list:String =
         flags.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name)).collect();
     return format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail];
-//    return "";
-
-/*
-    const int line_max_len = strlen(helpstr_indent) + MAX_FLAG_NAME_LENGTH + strlen(": 000\n") ;
-    char lines[FLAG_COUNT][line_max_len];
-    size_t lines_total_len = 0;
-
-    for(int i = 0; i < FLAG_COUNT; ++i) {
-        lines_total_len += snprintf(lines[i], line_max_len, "%s%s: %d\n", helpstr_indent, flags[i].name, i);
-    }
-
-    size_t helpstr_len = strlen(helpstr_head) + lines_total_len + strlen(helpstr_tail);
-
-    char *out = malloc(helpstr_len);
-    char *out_pos = out;
-
-    out_pos = mempcpy(out, helpstr_head, strlen(helpstr_head));
-
-    for(int i = 0; i < FLAG_COUNT; ++i) {
-        char* this_line = lines[i];
-        out_pos = mempcpy(out_pos, this_line, strlen(this_line));
-    }
-    */
 }
 
-/*
-static void cleanup_helpstr(void)
-{
-    free(helpstr);
-}
-*/
-
+// TODO rewrite to return instead of use &mut
 fn find_escape_sequences(current_char:char, state:&mut escape_state_e)
 {
     use escape_state_e::*;
@@ -581,19 +450,6 @@ fn find_escape_sequences(current_char:char, state:&mut escape_state_e)
         *state = ESCAPE_STATE_OUT;
     }
 }
-
-/* totally unneeded?
-static wint_t helpstr_hack(FILE * _ignored)
-{
-    (void)_ignored;
-    static size_t idx = 0;
-    char c = helpstr[idx++];
-    if (c)
-        return c;
-    idx = 0;
-    return WEOF;
-}
-*/
 
 fn lookup_pattern(name:&str) -> Option<&'static pattern_t>
 {
@@ -616,7 +472,7 @@ fn mix_colors(color1:u32, color2:u32, balance:f32, factor:f32, output_color:&mut
     let green_2 = ((color2 & 0x00ff00) >>  8) as f32;
     let blue_2  = ((color2 & 0x0000ff) >>  0) as f32;
 
-    let mut balance = balance.powf(factor);
+    let balance = balance.powf(factor);
 
     output_color.red = (red_1 * balance + red_2 * (1.0 - balance)).round() as u8;
     output_color.green = (green_1 * balance + green_2 * (1.0 - balance)).round() as u8;
@@ -636,12 +492,6 @@ fn get_color_rainbow(color_pattern:&color_pattern_t, theta:f32, color:&mut color
 {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
-    /* Unused variables. */
-    //UNUSED(color_pattern);
-
-    /* Get theta in range. */
-//    while (theta < 0) { theta += 2.0f * PI; }
-//    while (theta >= 2.0f * PI) { theta -= 2.0f * PI; }
 
     /* Generate the color. */
     color.red   = ((1.0 * (0.5 + 0.5 * (theta + 0.0            ).sin())) * 255.0).round() as u8;
@@ -655,13 +505,10 @@ fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
 
-    /* Get theta in range. */
-//    while (theta < 0) { theta += 2.0f * PI; }
-//    while (theta >= 2.0f * PI) { theta -= 2.0f * PI; }
-
+    // TODO? can this be calcualted directly w/out the loop?
     /* Find the stripe based on theta and generate the color. */
-    for i in 0..(color_pattern.stripes_count as usize) {
-        let stripe_size = (2.0 * PI) / color_pattern.stripes_count as f32;
+    for i in 0..color_pattern.stripes_count() {
+        let stripe_size = (2.0 * PI) / color_pattern.stripes_count() as f32;
         let min_theta = i as f32 * stripe_size;
         let max_theta = (i + 1) as f32 * stripe_size;
 
@@ -763,7 +610,6 @@ impl Default for Settings {
     }
 }
 
-//fn parse_args<T: Iterator<Item = String>>(mut args:T) -> Result<Settings,ParseArgsFail> {
 fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArgsFail> {
     let _ = args.next(); // discard exename in first element
 
@@ -890,90 +736,9 @@ fn main() -> Result<(),QueercatFatalError>
             get_fake_random() as i32
         } else { 0 };
 
-    //ExitCode::SUCCESS
-
-    // *
-    /*
-    char* default_argv[] = { "-" };
-    int cc = -1;
-    int i = 0;
-    int char_index = 0;
-    int line_index = 0;
-    wint_t current_char = '\0';
-    bool print_colors = isatty(STDOUT_FILENO);
-    bool force_locale = true;
-    bool random = false;
-    color_type_t color_type = COLOR_TYPE_ANSII;
-    double freq_h = 0.23;
-    double freq_v = 0.1;
-    char* flag_type = "rainbow";
-    */
-
     //struct timeval tv;
     //gettimeofday(&tv, NULL);
     //double offx = (tv.tv_sec % 300) / 300.0;
-
-    // TODO lazify this
-    //build_helpstr();
-
-    /* Handle flags. */
-    /*
-    for (i = 1; i < argc; i++) {
-        char* endptr;
-        if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--flag")) {
-            if ((++i) < argc) {
-                flag_type = argv[i];
-            } else {
-                usage();
-            }
-        } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--horizontal-frequency")) {
-            if ((++i) < argc) {
-                freq_h = strtod(argv[i], &endptr);
-                if (*endptr)
-                    usage();
-            } else {
-                usage();
-            }
-        } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--offset")) {
-            if ((++i) < argc) {
-                offx = strtod(argv[i], &endptr);
-                if (*endptr)
-                    usage();
-            } else {
-                usage();
-            }
-        } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--vertical-frequency")) {
-            if ((++i) < argc) {
-                freq_v = strtod(argv[i], &endptr);
-                if (*endptr)
-                    usage();
-            } else {
-                usage();
-            }
-        } else if (!strcmp(argv[i], "-F") || !strcmp(argv[i], "--force-color")) {
-            print_colors = true;
-        } else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--no-force-locale")) {
-            force_locale = false;
-        } else if (!strcmp(argv[i], "-r") || !strcmp(argv[i], "--random")) {
-            random = true;
-        } else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--24bit")) {
-            color_type = COLOR_TYPE_24_BIT;
-        } else if (!strcmp(argv[i], "--version")) {
-            version();
-        } else {
-            if (!strcmp(argv[i], "--"))
-                i++;
-            break;
-        }
-    }
-    */
-
-    /* Get pattern. */
-    //const pattern_t *pattern = lookup_pattern(flag_type);
-    //if (pattern == NULL) {
-    //    fprintf(stderr, "Invalid flag: %s\n", flag_type);
-    //    exit(1);
-    //}
 
     /* Handle randomness. */
     //int rand_offset = 0;
@@ -981,16 +746,6 @@ fn main() -> Result<(),QueercatFatalError>
     //    srand(time(NULL));
     //    rand_offset = rand();
     //}
-
-    /* Get inputs. */
-    /*
-    char** inputs = argv + i;
-    char** inputs_end = argv + argc;
-    if (inputs == inputs_end) {
-        inputs = default_argv;
-        inputs_end = inputs + 1;
-    }
-    */
 
     /* Handle locale. */
     /* // don't *think* we actually need/care about this?
@@ -1015,22 +770,20 @@ fn main() -> Result<(),QueercatFatalError>
     }
     */
 
-    use std::io::{self,Read,Cursor,stdin,BufReader,BufRead};
+    use std::io::{self,Read};
     use std::fs::File;
 
-    //let files: dyn Iterator<Item=Box<dyn Read>> =
     let files: Box<dyn Iterator<Item=io::Result<Box<dyn Read>>>> =
         if settings.print_help
         {
-            //vec![Box::new(Cursor::new(build_helpstr())))]
-            let r:Box<dyn Read> = Box::new(Cursor::new(build_helpstr()));
+            let r:Box<dyn Read> = Box::new(io::Cursor::new(build_helpstr()));
             Box::new(std::iter::once(Ok(r)))
         }
         else
         {
             let file_iterator = settings.file_names.iter().map(|filename| -> io::Result<Box<dyn Read>> {
                 match filename.as_str() {
-                    "-" => Ok(Box::new(stdin())),
+                    "-" => Ok(Box::new(io::stdin())),
                     _ => Ok(Box::new(File::open(filename)?))
                 }
             });
@@ -1044,6 +797,7 @@ fn main() -> Result<(),QueercatFatalError>
             continue;
         }
 
+        use std::io::{BufReader,BufRead};
         use escape_state_e::*;
 
         let mut reader = BufReader::new(file?);
@@ -1085,79 +839,4 @@ fn main() -> Result<(),QueercatFatalError>
     }
 
     Ok(())
-
-    /* For file in inputs. */
-    /*
-    for (char** filename = inputs; filename < inputs_end; filename++) {
-        wint_t (*this_file_read_wchar)(FILE*); /* Used for --help because fmemopen is universally broken when used with fgetwc */
-        FILE* f;
-        escape_state_t escape_state = ESCAPE_STATE_OUT;
-
-        /* Handle "--help", "-" (STDIN) and file names. */
-        if (!strcmp(*filename, "--help")) {
-            this_file_read_wchar = &helpstr_hack;
-            f = 0;
-
-        } else if (!strcmp(*filename, "-")) {
-            this_file_read_wchar = &fgetwc;
-            f = stdin;
-
-        } else {
-            this_file_read_wchar = &fgetwc;
-            f = fopen(*filename, "r");
-            if (!f) {
-                fwprintf(stderr, "Cannot open input file \"%s\": %s\n", *filename, strerror(errno));
-                return 2;
-            }
-        }
-
-        /* While there are chars to read. */
-        while ((current_char = this_file_read_wchar(f)) != WEOF) {
-
-            /* If set to print colors, handle the colors. */
-            if (print_colors) {
-
-                /* Skip escape sequences. */
-                find_escape_sequences(current_char, &escape_state);
-                if (escape_state == ESCAPE_STATE_OUT) {
-
-                    /* Handle newlines. */
-                    if (current_char == '\n') {
-                        line_index++;
-                        char_index = 0;
-                    } else {
-                        char_index += wcwidth(current_char);
-                        print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset, cc);
-                    }
-                }
-            }
-
-            /* Print the char. */
-            putwchar(current_char);
-
-            if (escape_state == ESCAPE_STATE_LAST) {  /* implies "print_colors" */
-                print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset, cc);
-            }
-        }
-
-        if (print_colors)
-            wprintf("\033[0m");
-
-        cc = -1;
-
-        if (f) {
-            if (ferror(f)) {
-                fwprintf(stderr, "Error reading input file \"%s\": %s\n", *filename, strerror(errno));
-                fclose(f);
-                return 2;
-            }
-
-            if (fclose(f)) {
-                fwprintf(stderr, "Error closing input file \"%s\": %s\n", *filename, strerror(errno));
-                return 2;
-            }
-        }
-    }
-    */
-    // */
 }
