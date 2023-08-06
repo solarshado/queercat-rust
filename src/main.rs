@@ -391,8 +391,8 @@ fn build_helpstr() -> String
     //use const_format::*;
 
     // TODO pull the mentioned defaults here from the actual defaults used instead of repeating
-    let helpstr_head = concat!["\n",
-        "Usage: queercat [-f flag_number][-h horizontal_speed] [-v vertical_speed] [--] [FILES...]\n",
+    let helpstr_head = concat![
+        "Usage: queercat [OPTION...] [--] [FILE...]\n",
         "\n",
         "Concatenate FILE(s), or standard input, to standard output.\n",
         "With no FILE, or when FILE is -, read standard input.\n",
@@ -407,7 +407,7 @@ fn build_helpstr() -> String
         "              --offset <d>, -o <d>: Offset of the start of the flag\n",
         "                 --force-color, -F: Force color even when stdout is not a tty\n",
 //        "             --no-force-locale, -l: Use encoding from system locale instead of\n",
-        "                                    assuming UTF-8\n",
+//        "                                    assuming UTF-8\n",
         "                      --random, -r: Random colors\n",
         "                       --24bit, -b: Output in 24-bit \"true\" RGB mode (slower and\n",
         "                                    not supported by all terminals)\n",
@@ -573,7 +573,7 @@ fn get_fake_random() -> u32 {
 }
 
 enum ParseArgsFail {
-    PrintUsage(Option<String>),
+    PrintUsage(String),
     PrintVersion,
 }
 
@@ -614,40 +614,49 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
     let _ = args.next(); // discard exename in first element
 
     macro_rules! usage {
-        ($i:tt) => {
-            PrintUsage(Some(format![$i]))
+        ($($i:tt)*) => {
+            PrintUsage(format![$($i)*])
+        };
+    }
+    macro_rules! next_arg_for {
+        ($flag:ident) => {
+            args.next().ok_or(usage!["'{}' option requires an argument!",$flag])
+        };
+    }
+    macro_rules! badval {
+        ($val:expr,$flag:ident) => {
+            usage!["Invalid {} value: {}",$flag,$val]
         };
     }
 
     let mut settings = Settings::default();
+    // TODO support -o=val / --opt=value format
+    // _maybe_ "-hvof 1 2 3 4" clustering too? sounds way harder
+    //      but maybe could pre-process?
 
     while let Some(arg) = args.next() {
         use ParseArgsFail::*;
         match arg.as_str() {
             flag if arg.starts_with('-') => match flag {
                 "-f" | "--flag" => {
-                    let next = args.next()
-                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    let next = next_arg_for!(flag)?;
                     settings.flag = lookup_pattern(next.as_str())
-                        .ok_or(usage!["Unknown flag: '{next}'"])?;
+                        .ok_or_else(|| badval![next,flag])?;
                 },
                 "-h" | "--horizontal-frequency" => {
-                    let next = args.next()
-                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    let next = next_arg_for!(flag)?;
                     settings.horiz_freq = next.parse()
-                        .or(Err(usage!["invalid {flag} value: {next}"]))?;
+                        .map_err(|_| badval![next,flag])?;
                 },
                 "-v" | "--vertical-frequency" => {
-                    let next = args.next()
-                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    let next = next_arg_for!(flag)?;
                     settings.vert_freq = next.parse()
-                        .or(Err(usage!["invalid {flag} value: {next}"]))?;
+                        .map_err(|_| badval![next,flag])?;
                 },
                 "-o" | "--offset" => {
-                    let next = args.next()
-                        .ok_or(usage!["'{flag}' option requires an argument!"])?;
+                    let next = next_arg_for!(flag)?;
                     settings.horiz_offset = next.parse()
-                        .or(Err(usage!["invalid {flag} value: {next}"]))?;
+                        .map_err(|_| badval![next,flag])?;
                 },
                 "-F" | "--force-color" => {
                     settings.enable_color = true;
@@ -675,7 +684,6 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
                     break; // above consumes the rest of args, and borrows args
                 },
                 _ => {
-                    //Err(PrintUsage(Some(format!["Unknown option: {flag}"])))?;
                     Err(usage!["Unknown option: {flag}"])?;
                 }
             },
@@ -695,7 +703,7 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
 
 enum QueercatFatalError
 {
-    BadCommandLine(Option<String>),
+    BadCommandLine(String),
     IoError(std::io::Error)
 }
 
@@ -712,11 +720,8 @@ impl std::fmt::Debug for QueercatFatalError
         use QueercatFatalError::*;
         match self {
             BadCommandLine(msg) => {
-                if let Some(ref msg) = msg {
-                    writeln!(f,"{}",msg)?;
-                }
-                // TODO improve this message
-                writeln!(f, "Usage: queercat [-h horizontal_speed] [-v vertical_speed] [--] [FILES...]")
+                writeln!(f,"{}",msg)?;
+                writeln!(f, "Try 'queercat --help' for more information.")
             },
             IoError(e) => e.fmt(f)
         }
