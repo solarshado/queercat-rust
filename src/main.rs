@@ -1,36 +1,8 @@
+mod flags;
+use flags::flags;
 
 const ESCAPE_CHAR:char = '\x1b'; //'\033'
 
-/* Types */
-#[derive(PartialEq)]
-enum escape_state_e {
-    ESCAPE_STATE_OUT,
-    ESCAPE_STATE_IN,
-    ESCAPE_STATE_LAST
-}
-
-/* Macros */
-// #define UNUSED(var) ((void)(var))
-
-// #define NEXT_CYCLIC_ELEMENT(array, index, array_size) \
-//    (((index) + 1 == (array_size)) ? (array)[0] : (array)[((index) + 1)] )
-fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
-{
-    let next_i = curr_pos + 1;
-    if next_i >= container.len() {
-        &container[0]
-    }
-    else {
-        &container[next_i]
-    }
-}
-
-// #define IS_LETTER(c) (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'))
-macro_rules! IS_LETTER {
-    ($c:ident) => { (('a' <= $c && $c <= 'z') || ('A' <= $c && $c <= 'Z')) }
-}
-
-/* *** Types *********************************************************/
 /* Colors. */
 //typedef uint32_t hex_color_t;
 type hex_color_t = u32;
@@ -45,28 +17,26 @@ struct color_t {
 
 /* Color type patterns. */
 enum color_type_t {
-//    COLOR_TYPE_INVALID = -1,
     COLOR_TYPE_ANSII,// = 0,
     COLOR_TYPE_24_BIT,
-//    COLOR_TYPE_COUNT
 }
 
-// TODO replace below struct with:
+// TODO? replace below struct with:
 //type ansii_pattern_t = &'static [ansii_code_t];
-struct ansii_pattern_t {
-//    const unsigned int codes_count;
-    codes_count : u32,
-//    const unsigned char ansii_codes[MAX_ANSII_CODES_COUNT];
-    ansii_codes : &'static [ansii_code_t],
+struct ansii_pattern_t(&'static [ansii_code_t]);
+
+impl ansii_pattern_t {
+    fn codes_count(&self) -> usize {
+        self.0.len()
+    }
+    fn ansii_codes(&self) -> &[ansii_code_t] {
+        self.0
+    }
 }
 
 struct color_pattern_t {
-//    const uint8_t stripes_count;
-//    stripes_count : u8, // unneeded
-//    const uint32_t stripes_colors[MAX_FLAG_STRIPES];
-    stripes_colors : &'static [hex_color_t],
-//    const float factor;
-    factor : f32,
+    stripes_colors:  &'static [hex_color_t],
+    factor: f32,
 }
 
 impl color_pattern_t {
@@ -75,310 +45,21 @@ impl color_pattern_t {
     }
 }
 
-/* Get color function. */
-//typedef void(get_color_f)(const color_pattern_t *color_pattern, float theta, color_t *color);
-type get_color_f = fn(&color_pattern_t, f32, &mut color_t);
-
-enum get_color_f_impl {
+enum color_pattern {
     Rainbow,
-    Stripes
+    Stripes(color_pattern_t)
 }
 
-/* Pattern. */
-// TODO replace color_pattern + get_color with an enum {Rainbow,List}
-//      update impl block
 struct pattern_t {
-//    const char name[MAX_FLAG_NAME_LENGTH];
     name: &'static str,
-//    const ansii_pattern_t ansii_pattern;
     ansii_pattern: ansii_pattern_t,
-//    const color_pattern_t color_pattern;
-    color_pattern: Option<color_pattern_t>,
-//    get_color_f *get_color;
-    get_color: get_color_f_impl,
+    color_pattern: color_pattern,
 }
-
-impl pattern_t {
-    fn get_color_getter(&self) -> get_color_f {
-        use get_color_f_impl::*;
-        match self.get_color {
-            Rainbow => get_color_rainbow,
-            Stripes => get_color_stripes,
-        }
-    }
-}
-
-/* *** A Single Global ***********************************************/
-//const helpstr:&str = build_helpstr();
-
-/* *** Pattern Functions *********************************************/
-//get_color_f get_color_rainbow;
-//get_color_f get_color_stripes;
-
-/* *** Flags *********************************************************/
-// TODO move to separate file
-static flags:&[pattern_t] = &[
-    pattern_t {
-        name: "rainbow",
-        ansii_pattern: ansii_pattern_t {
-            codes_count: 30,
-            ansii_codes: &[ 39, 38, 44, 43, 49, 48, 84, 83, 119, 118, 154, 148, 184, 178,
-                214, 208, 209, 203, 204, 198, 199, 163, 164, 128, 129, 93, 99, 63, 69, 33 ]
-        },
-        color_pattern: None,
-        get_color: get_color_f_impl::Rainbow
-    },
-
-    pattern_t {
-        name: "transgender",
-        ansii_pattern: ansii_pattern_t {
-            codes_count: 10,
-            ansii_codes: &[81, 81, 217, 217,  231, 231,  217, 217,  81, 81]
-        },
-        color_pattern: Some(color_pattern_t {
-//            stripes_count: 5,
-            stripes_colors: &[
-                0x55cdfc, /* #55cdfc - Blue */
-                0xf7a8b8, /* #f7a8b8 - Pink */
-                0xffffff, /* #ffffff - White */
-                0xf7a8b8, /* #f7a8b8 - Pink */
-                0x55cdfc  /* #55cdfc - Blue */
-            ],
-            factor: 4.0
-        }),
-        get_color: get_color_f_impl::Stripes
-    },
-/* todo! finish converting...
-    {
-        .name = "nonbinary",
-        .ansii_pattern = {
-            .codes_count = 8,
-            .ansii_codes = {226, 226, 255, 255, 93, 93, 234, 234}
-        },
-        .color_pattern = {
-            .stripes_count = 4,
-            .stripes_colors = {
-                0xffff00, /* #ffff00 - Yellow */
-                0xb000ff, /* #b000ff - Purple */
-                0xffffff, /* #ffffff - White */
-                0x000000  /* #000000 - Black */
-            },
-            .factor = 4.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "lesbian",
-        .ansii_pattern = {
-            .codes_count = 5,
-            .ansii_codes = {196, 208, 255, 170, 128}
-        },
-        .color_pattern = {
-            .stripes_count = 5,
-            .stripes_colors = {
-                0xff0000, /* #ff0000 - Red */
-                0xff993f, /* #ff993f - Orange */
-                0xffffff, /* #ffffff - White */
-                0xff8cbd, /* #ff8cbd - Pink */
-                0xff4284  /* #ff4284 - Purple */
-            },
-            .factor = 2.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "gay",
-        .ansii_pattern = {
-            .codes_count = 7,
-            .ansii_codes = {36, 49, 121, 255, 117, 105, 92}
-        },
-        .color_pattern = {
-            .stripes_count = 5,
-            .stripes_colors = {
-                0x00b685, /* #00b685 - Teal */
-                0x6bffb6, /* #6bffb6 - Green */
-                0xffffff, /* #ffffff - White */
-                0x8be1ff, /* #8be1ff - Blue */
-                0x8e1ae1  /* #8e1ae1 - Purple */
-            },
-            .factor = 6.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "pansexual",
-        .ansii_pattern = {
-            .codes_count = 9,
-            .ansii_codes = {200, 200, 200,  227, 227, 227,  45, 45, 45}
-        },
-        .color_pattern = {
-            .stripes_count = 3,
-            .stripes_colors = {
-                0xff3388, /* #ff3388 - Pink */
-                0xffea00, /* #ffea00 - Yellow */
-                0x00dbff  /* #00dbff - Cyan */
-            },
-            .factor = 8.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "bisexual",
-        .ansii_pattern = {
-            .codes_count = 8,
-            .ansii_codes = {162, 162, 162,  129, 129, 27, 27, 27}
-        },
-        .color_pattern = {
-            .stripes_count = 5,
-            .stripes_colors = {
-                0xff3b7b, /* #ff3b7b - Pink */
-                0xff3b7b, /* #ff3b7b - Pink */
-                0xd06bcc, /* #d06bcc - Purple */
-                0x3b72ff, /* #3b72ff - Blue */
-                0x3b72ff  /* #3b72ff - Blue */
-            },
-            .factor = 4.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "gender_fluid",
-        .ansii_pattern = {
-            .codes_count = 10,
-            .ansii_codes = {219, 219, 255, 255, 128, 128, 234, 234, 20, 20}
-        },
-        .color_pattern = {
-            .stripes_count = 5,
-            .stripes_colors = {
-                0xffa0bc, /* #ffa0bc - Pink */
-                0xffffff, /* #ffffff - White */
-                0xc600e4, /* #c600e4 - Purple */
-                0x000000, /* #000000 - Black */
-                0x4e3cbb  /* #4e3cbb - Blue */
-            },
-            .factor = 2.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "asexual",
-        .ansii_pattern = {
-            .codes_count = 8,
-            .ansii_codes = {233, 233, 247, 247, 255, 255, 5, 5}
-        },
-        .color_pattern = {
-            .stripes_count = 4,
-            .stripes_colors = {
-                0x000000, /* #000000 - Black */
-                0xa3a3a3, /* #a3a3a3 - Gray */
-                0xffffff, /* #ffffff - White */
-                0x800080  /* #800080 - Purple */
-            },
-            .factor = 4.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "unlabeled",
-        .ansii_pattern = {
-            .codes_count = 8,
-            .ansii_codes = {194, 194, 255, 255, 195, 195, 223, 223}
-        },
-        .color_pattern = {
-            .stripes_count = 4,
-            .stripes_colors = {
-                0xe6f9e3, /* #e6f9e3 - Green */
-                0xfdfdfb, /* #fdfdfb - White */
-                0xdeeff9, /* #deeff9 - Blue */
-                0xfae1c2  /* #fae1c2 - Orange */
-            },
-            .factor = 4.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "aromantic",
-        .ansii_pattern = {
-            .codes_count = 10,
-            .ansii_codes = {
-                34, 34,
-                120, 120,
-                255, 255,
-                247, 247,
-                233, 233
-            }
-        },
-        .color_pattern = {
-            .stripes_count = 5,
-            .stripes_colors = {
-                0x3da542, /* #3da542 - Green        */
-                0xa8d379, /* #a8d379 - Light green  */
-                0xffffff, /* #ffffff - White        */
-                0xa9a9a9, /* #a9a9a9 - Grey         */
-                0x000000  /* #000000 - Black        */
-            },
-            .factor = 1.0f
-        },
-        .get_color = get_color_stripes
-    },
-
-    {
-        .name = "aroace",
-        .ansii_pattern = {
-            .codes_count = 10,
-            .ansii_codes = {
-                208, 208,
-                220, 220,
-                255, 255,
-                75, 75,
-                62, 62
-            },
-        },
-        .color_pattern = {
-            .stripes_count = 5,
-            .stripes_colors = {
-                0xe28d00, /* #e28d00 - Orange     */
-                0xeccd00, /* #eccd00 - Yellow     */
-                0xffffff, /* #ffffff - White      */
-                0x62afdd, /* #62afdd - Light blue */
-                0x203756  /* #203756 - Blue       */
-            },
-            .factor = 1.0f
-        },
-        .get_color = get_color_stripes
-    },
-    /* Add new flags above this line. */
-*/
-];
-
-/* *** Functions *****************************************************/
-/*
-fn usage(extra:Option<String>) -> QueercatFatalError
-{
-    if let Some(ref msg) = extra {
-        println!("{}",msg);
-    }
-    print!("Usage: queercat [-h horizontal_speed] [-v vertical_speed] [--] [FILES...]\n");
-    //exit(1);
-    //return ExitCode::FAILURE;
-    QueercatFatalError::BadCommandLine(extra)
-}
-*/
 
 fn print_version() -> ()
 {
 // TODO update this
     print!("queercat version 2.0, (c) 2022 elsa002\n");
-    //exit(0);
-//    return ExitCode::SUCCESS;
 }
 
 //fn build_helpstr() -> &'static str
@@ -438,10 +119,22 @@ fn build_helpstr() -> String
     return format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail];
 }
 
+#[derive(PartialEq)]
+enum escape_state_e {
+    ESCAPE_STATE_OUT,
+    ESCAPE_STATE_IN,
+    ESCAPE_STATE_LAST
+}
+
 // TODO rewrite to return instead of use &mut
 fn find_escape_sequences(current_char:char, state:&mut escape_state_e)
 {
     use escape_state_e::*;
+
+    macro_rules! IS_LETTER {
+        ($c:ident) => { (('a' <= $c && $c <= 'z') || ('A' <= $c && $c <= 'Z')) }
+    }
+
     if current_char == ESCAPE_CHAR {
         *state = ESCAPE_STATE_IN;
     } else if *state == ESCAPE_STATE_IN {
@@ -488,7 +181,7 @@ fn clamp_theta(mut theta:f32) -> f32
 }
 
 // TODO rewrite to return instead of use &mut
-fn get_color_rainbow(color_pattern:&color_pattern_t, theta:f32, color:&mut color_t )
+fn get_color_rainbow(theta:f32, color:&mut color_t)
 {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
@@ -500,10 +193,21 @@ fn get_color_rainbow(color_pattern:&color_pattern_t, theta:f32, color:&mut color
 }
 
 // TODO rewrite to return instead of use &mut
-fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color_t )
+fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color_t)
 {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
+
+    fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
+    {
+        let next_i = curr_pos + 1;
+        if next_i >= container.len() {
+            &container[0]
+        }
+        else {
+            &container[next_i]
+        }
+    }
 
     // TODO? can this be calcualted directly w/out the loop?
     /* Find the stripe based on theta and generate the color. */
@@ -548,19 +252,25 @@ fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, lin
                 line_index_f * freq_v +
                 (offx + 2.0 * rand_offset_f / f32MAX) * PI;
 
-            // TODO avoid unwrap() below
-            pattern.get_color_getter()(pattern.color_pattern.as_ref().unwrap(), theta, &mut color);
+            use color_pattern::*;
+            match &pattern.color_pattern {
+                Rainbow =>
+                    get_color_rainbow(theta, &mut color),
+                Stripes(patt) =>
+                    get_color_stripes(&patt, theta, &mut color),
+            }
+
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
         },
 
         COLOR_TYPE_ANSII => {
-            let pat_code_count = pattern.ansii_pattern.codes_count;
+            let pat_code_count = pattern.ansii_pattern.codes_count();
             ncc = ((offx * (pat_code_count as f32)).round() as i32) +
                 ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
             if cc != ncc {
                 cc = ncc;
                 print!("{}[38;5;{}m", ESCAPE_CHAR,
-                       pattern.ansii_pattern.ansii_codes[((rand_offset + cc) % pat_code_count as i32) as usize]);
+                       pattern.ansii_pattern.ansii_codes()[((rand_offset + cc) % pat_code_count as i32) as usize]);
             }
         }
     }
@@ -630,6 +340,7 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
     }
 
     let mut settings = Settings::default();
+
     // TODO support -o=val / --opt=value format
     // _maybe_ "-hvof 1 2 3 4" clustering too? sounds way harder
     //      but maybe could pre-process?
