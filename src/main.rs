@@ -3,28 +3,15 @@ use flags::flags;
 
 const ESCAPE_CHAR:char = '\x1b'; //'\033'
 
-/* Colors. */
-//typedef uint32_t hex_color_t;
-type hex_color_t = u32;
-//typedef unsigned char ansii_code_t;
-type ansii_code_t = u8;
-
-struct color_t {
-    red: u8,
-    green: u8,
-    blue: u8,
-}
-
-/* Color type patterns. */
-enum color_type_t {
-    COLOR_TYPE_ANSII,// = 0,
-    COLOR_TYPE_24_BIT,
+struct pattern_t {
+    name: &'static str,
+    ansii_pattern: ansii_pattern_t,
+    color_pattern: color_pattern,
 }
 
 // TODO? replace below struct with:
 //type ansii_pattern_t = &'static [ansii_code_t];
 struct ansii_pattern_t(&'static [ansii_code_t]);
-
 impl ansii_pattern_t {
     fn codes_count(&self) -> usize {
         self.0.len()
@@ -34,26 +21,35 @@ impl ansii_pattern_t {
     }
 }
 
-struct color_pattern_t {
-    stripes_colors:  &'static [hex_color_t],
-    factor: f32,
-}
-
-impl color_pattern_t {
-    fn stripes_count(&self) -> usize {
-        self.stripes_colors.len()
-    }
-}
+//typedef unsigned char ansii_code_t;
+type ansii_code_t = u8;
 
 enum color_pattern {
     Rainbow,
     Stripes(color_pattern_t)
 }
 
-struct pattern_t {
-    name: &'static str,
-    ansii_pattern: ansii_pattern_t,
-    color_pattern: color_pattern,
+struct color_pattern_t {
+    stripes_colors:  &'static [hex_color_t],
+    factor: f32,
+}
+impl color_pattern_t {
+    fn stripes_count(&self) -> usize {
+        self.stripes_colors.len()
+    }
+}
+
+//typedef uint32_t hex_color_t;
+type hex_color_t = u32;
+
+fn lookup_pattern(name:&str) -> Option<&'static pattern_t>
+{
+    flags.iter().find(|f| f.name == name)
+        .or_else(|| {
+            let n:usize = str::parse(name).ok()
+                .filter(|n| *n < flags.len())?;
+            Some(&flags[n])
+        })
 }
 
 fn print_version() -> ()
@@ -106,7 +102,8 @@ fn build_helpstr() -> String
         "base for code: <https://github.com/jaseg/lolcat/>\n",
         "Original idea: <https://github.com/busyloop/lolcat/>\n"];
 
-    /* old version of what this generates, for reference:
+    /* TODO from C version:
+     * old version of what this generates, for reference:
      * "                                    [rainbow: 0, trans: 1, NB: 2, lesbian: 3,\n"
      * "                                    gay: 4, pan: 5, bi: 6, genderfluid: 7, asexual: 8,\n"
      * "                                    unlabeled: 9, aromantic: 10, aroace: 11]\n"
@@ -116,42 +113,14 @@ fn build_helpstr() -> String
 
     let helpstr_flag_list:String =
         flags.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name)).collect();
-    return format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail];
+
+    format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail]
 }
 
-#[derive(PartialEq)]
-enum escape_state_e {
-    ESCAPE_STATE_OUT,
-    ESCAPE_STATE_IN,
-    ESCAPE_STATE_LAST
-}
-
-// TODO rewrite to return instead of use &mut
-fn find_escape_sequences(current_char:char, state:&mut escape_state_e)
-{
-    use escape_state_e::*;
-
-    macro_rules! IS_LETTER {
-        ($c:ident) => { (('a' <= $c && $c <= 'z') || ('A' <= $c && $c <= 'Z')) }
-    }
-
-    if current_char == ESCAPE_CHAR {
-        *state = ESCAPE_STATE_IN;
-    } else if *state == ESCAPE_STATE_IN {
-        *state = if IS_LETTER!(current_char) { ESCAPE_STATE_LAST } else { ESCAPE_STATE_IN };
-    } else {
-        *state = ESCAPE_STATE_OUT;
-    }
-}
-
-fn lookup_pattern(name:&str) -> Option<&'static pattern_t>
-{
-    flags.iter().find(|f| f.name == name)
-        .or_else(|| {
-            let n:usize = str::parse(name).ok()
-                .filter(|n| *n < flags.len())?;
-            Some(&flags[n])
-        })
+struct color_t {
+    red: u8,
+    green: u8,
+    blue: u8,
 }
 
 // TODO rewrite to return instead of use &mut
@@ -198,29 +167,32 @@ fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
 
-    fn next_cyclic_element<T>(container:&[T], curr_pos:usize) -> &T
-    {
-        let next_i = curr_pos + 1;
-        if next_i >= container.len() {
-            &container[0]
-        }
-        else {
-            &container[next_i]
-        }
-    }
+    let stripes = color_pattern.stripes_colors;
+    let stripe_count = stripes.len();
 
     // TODO? can this be calcualted directly w/out the loop?
     /* Find the stripe based on theta and generate the color. */
-    for i in 0..color_pattern.stripes_count() {
-        let stripe_size = (2.0 * PI) / color_pattern.stripes_count() as f32;
+    let stripe_size = (2.0 * PI) / stripe_count as f32;
+    for i in 0..stripe_count {
         let min_theta = i as f32 * stripe_size;
         let max_theta = (i + 1) as f32 * stripe_size;
 
         if min_theta <= theta && max_theta > theta {
             let balance = 1.0 - ((theta - min_theta) / stripe_size);
+
+            let next_color = {
+                let next_i = i + 1;
+                if next_i >= stripe_count {
+                    stripes[0]
+                }
+                else {
+                    stripes[next_i]
+                }
+            };
+
             mix_colors(
-                    color_pattern.stripes_colors[i],
-                    *next_cyclic_element(&color_pattern.stripes_colors, i),
+                    stripes[i],
+                    next_color,
                     balance,
                     color_pattern.factor,
                     color);
@@ -276,6 +248,31 @@ fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, lin
     }
 }
 
+#[derive(PartialEq)]
+enum escape_state_e {
+    ESCAPE_STATE_OUT,
+    ESCAPE_STATE_IN,
+    ESCAPE_STATE_LAST
+}
+
+// TODO rewrite to return instead of use &mut
+fn find_escape_sequences(current_char:char, state:&mut escape_state_e)
+{
+    use escape_state_e::*;
+
+    if current_char == ESCAPE_CHAR {
+        *state = ESCAPE_STATE_IN;
+    } else if *state == ESCAPE_STATE_IN {
+        *state = if current_char.is_ascii_alphabetic() {
+            ESCAPE_STATE_LAST
+        } else {
+            ESCAPE_STATE_IN
+        };
+    } else {
+        *state = ESCAPE_STATE_OUT;
+    }
+}
+
 // probably good enough?
 fn get_fake_random() -> u32 {
     use std::time::*;
@@ -298,6 +295,11 @@ struct Settings {
     color_type: color_type_t, // default ansii, flag for 24bit
     enable_rand_offset: bool,
     print_help: bool, // default false, ignores file_names if true
+}
+
+enum color_type_t {
+    COLOR_TYPE_ANSII,
+    COLOR_TYPE_24_BIT,
 }
 
 // TODO move these defaults somewhere better/that helpstr can see
@@ -443,7 +445,8 @@ fn main() -> Result<(),QueercatFatalError>
 {
     let settings = match parse_args(std::env::args()) {
         Ok(s) => s,
-        Err(ParseArgsFail::PrintUsage(msg)) => return Err(QueercatFatalError::BadCommandLine(msg)),
+        Err(ParseArgsFail::PrintUsage(msg)) =>
+            return Err(QueercatFatalError::BadCommandLine(msg)),
         Err(ParseArgsFail::PrintVersion) => return Ok(print_version()),
     };
 
