@@ -1,54 +1,48 @@
 mod flags;
-use flags::flags;
+use flags::FLAGS;
 
 const ESCAPE_CHAR:char = '\x1b'; //'\033'
 
-struct pattern_t {
+struct FlagDefinition {
     name: &'static str,
-    ansii_pattern: ansii_pattern_t,
-    color_pattern: color_pattern,
+    ansii_pattern: ColorPattern_Ansii,
+    color_pattern: ColorPattern_24bit,
 }
 
 // TODO? replace below struct with:
-//type ansii_pattern_t = &'static [ansii_code_t];
-struct ansii_pattern_t(&'static [ansii_code_t]);
-impl ansii_pattern_t {
+//type ansii_pattern_t = &'static [u8];
+struct ColorPattern_Ansii(&'static [u8]);
+impl ColorPattern_Ansii {
     fn codes_count(&self) -> usize {
         self.0.len()
     }
-    fn ansii_codes(&self) -> &[ansii_code_t] {
+    fn ansii_codes(&self) -> &[u8] {
         self.0
     }
 }
 
-//typedef unsigned char ansii_code_t;
-type ansii_code_t = u8;
-
-enum color_pattern {
+enum ColorPattern_24bit {
     Rainbow,
-    Stripes(color_pattern_t)
+    Stripes(ColorStripes_24bit)
 }
 
-struct color_pattern_t {
-    stripes_colors:  &'static [hex_color_t],
+struct ColorStripes_24bit {
+    stripes:  &'static [u32],
     factor: f32,
 }
-impl color_pattern_t {
-    fn stripes_count(&self) -> usize {
-        self.stripes_colors.len()
+impl ColorStripes_24bit {
+    fn stripe_count(&self) -> usize {
+        self.stripes.len()
     }
 }
 
-//typedef uint32_t hex_color_t;
-type hex_color_t = u32;
-
-fn lookup_pattern(name:&str) -> Option<&'static pattern_t>
+fn lookup_pattern(name:&str) -> Option<&'static FlagDefinition>
 {
-    flags.iter().find(|f| f.name == name)
+    FLAGS.iter().find(|f| f.name == name)
         .or_else(|| {
             let n:usize = str::parse(name).ok()
-                .filter(|n| *n < flags.len())?;
-            Some(&flags[n])
+                .filter(|n| *n < FLAGS.len())?;
+            Some(&FLAGS[n])
         })
 }
 
@@ -112,19 +106,19 @@ fn build_helpstr() -> String
      */
 
     let helpstr_flag_list:String =
-        flags.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name)).collect();
+        FLAGS.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name)).collect();
 
     format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail]
 }
 
-struct color_t {
+struct Color_24bit {
     red: u8,
     green: u8,
     blue: u8,
 }
 
 // TODO rewrite to return instead of use &mut
-fn mix_colors(color1:u32, color2:u32, balance:f32, factor:f32, output_color:&mut color_t)
+fn mix_colors(color1:u32, color2:u32, balance:f32, factor:f32, output_color:&mut Color_24bit)
 {
     let red_1   = ((color1 & 0xff0000) >> 16) as f32;
     let green_1 = ((color1 & 0x00ff00) >>  8) as f32;
@@ -150,7 +144,7 @@ fn clamp_theta(mut theta:f32) -> f32
 }
 
 // TODO rewrite to return instead of use &mut
-fn get_color_rainbow(theta:f32, color:&mut color_t)
+fn get_color_rainbow(theta:f32, color:&mut Color_24bit)
 {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
@@ -162,12 +156,12 @@ fn get_color_rainbow(theta:f32, color:&mut color_t)
 }
 
 // TODO rewrite to return instead of use &mut
-fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color_t)
+fn get_color_stripes(color_pattern:&ColorStripes_24bit, theta:f32, color:&mut Color_24bit)
 {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
 
-    let stripes = color_pattern.stripes_colors;
+    let stripes = color_pattern.stripes;
     let stripe_count = stripes.len();
 
     // TODO? can this be calcualted directly w/out the loop?
@@ -201,9 +195,9 @@ fn get_color_stripes(color_pattern:&color_pattern_t, theta:f32, color:&mut color
     }
 }
 
-fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:i32)
+fn print_color(pattern:&FlagDefinition, color_type:&OutputColorType, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:i32)
 {
-    use self::color_type_t::*;
+    use self::OutputColorType::*;
     use std::f32::{MAX as f32MAX, consts::PI};
 
     // TODO can we make this less gross?
@@ -213,18 +207,18 @@ fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, lin
     let rand_offset_f:f32 = rand_offset as f32;
 
     let theta:f32;
-    let mut color:color_t = color_t { red: 0, green: 0, blue:0 };
+    let mut color:Color_24bit = Color_24bit { red: 0, green: 0, blue:0 };
 
     let mut cc:i32 = -1;
     let ncc:i32;
 
     match color_type {
-        COLOR_TYPE_24_BIT => {
+        TwentyFourBit => {
             theta = char_index_f * freq_h / 5.0 +
                 line_index_f * freq_v +
                 (offx + 2.0 * rand_offset_f / f32MAX) * PI;
 
-            use color_pattern::*;
+            use ColorPattern_24bit::*;
             match &pattern.color_pattern {
                 Rainbow =>
                     get_color_rainbow(theta, &mut color),
@@ -235,7 +229,7 @@ fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, lin
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
         },
 
-        COLOR_TYPE_ANSII => {
+        Ansii => {
             let pat_code_count = pattern.ansii_pattern.codes_count();
             ncc = ((offx * (pat_code_count as f32)).round() as i32) +
                 ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
@@ -249,33 +243,31 @@ fn print_color(pattern:&pattern_t, color_type:&color_type_t, char_index:u32, lin
 }
 
 #[derive(PartialEq)]
-enum escape_state_e {
-    ESCAPE_STATE_OUT,
-    ESCAPE_STATE_IN,
-    ESCAPE_STATE_LAST
+enum EscapeState {
+    Out,
+    In,
+    Last
 }
 
 // TODO rewrite to return instead of use &mut
-fn find_escape_sequences(current_char:char, state:&mut escape_state_e)
+fn find_escape_sequences(current_char:char, state:&mut EscapeState)
 {
-    use escape_state_e::*;
-
     if current_char == ESCAPE_CHAR {
-        *state = ESCAPE_STATE_IN;
-    } else if *state == ESCAPE_STATE_IN {
+        *state = EscapeState::In;
+    } else if *state == EscapeState::In {
         *state = if current_char.is_ascii_alphabetic() {
-            ESCAPE_STATE_LAST
+            EscapeState::Last
         } else {
-            ESCAPE_STATE_IN
+            EscapeState::In
         };
     } else {
-        *state = ESCAPE_STATE_OUT;
+        *state = EscapeState::Out;
     }
 }
 
 // probably good enough?
 fn get_fake_random() -> u32 {
-    use std::time::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().subsec_millis()
 }
 
@@ -286,20 +278,20 @@ enum ParseArgsFail {
 
 struct Settings {
     file_names: Vec<String>, // "-" means "stdin"; default ["-"]
-    flag: &'static pattern_t, // default flags[0] (rainbow)
+    flag: &'static FlagDefinition, // default flags[0] (rainbow)
     horiz_freq: f32, // default 0.23
     vert_freq: f32, // default 0.1
     horiz_offset: f32, // default from (time_of_day.now.sec) % 300 /300 (?)
     enable_color: bool, // default from is_a_tty(stdout)
 //    force_locale: bool, // default true
-    color_type: color_type_t, // default ansii, flag for 24bit
+    color_type: OutputColorType, // default ansii, flag for 24bit
     enable_rand_offset: bool,
     print_help: bool, // default false, ignores file_names if true
 }
 
-enum color_type_t {
-    COLOR_TYPE_ANSII,
-    COLOR_TYPE_24_BIT,
+enum OutputColorType {
+    Ansii,
+    TwentyFourBit,
 }
 
 // TODO move these defaults somewhere better/that helpstr can see
@@ -309,13 +301,13 @@ impl Default for Settings {
         let color_default = stdout().is_terminal();
         Settings {
             file_names: Vec::new(),
-            flag: &flags[0],
+            flag: &FLAGS[0],
             horiz_freq: 0.23,
             vert_freq: 0.1,
             horiz_offset: ((get_fake_random() % 300) / 300) as f32, // magic numbers from original version
             enable_color: color_default,
 //            force_locale: true,
-            color_type: color_type_t::COLOR_TYPE_ANSII,
+            color_type: OutputColorType::Ansii,
             enable_rand_offset: false,
             print_help: false,
         }
@@ -381,7 +373,7 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
                     settings.enable_rand_offset = true;
                 },
                 "-b" | "--24bit" => {
-                    settings.color_type = color_type_t::COLOR_TYPE_24_BIT;
+                    settings.color_type = OutputColorType::TwentyFourBit;
                 },
                 "--help" => {
                     settings.print_help = true;
@@ -517,11 +509,10 @@ fn main() -> Result<(),QueercatFatalError>
         }
 
         use std::io::{BufReader,BufRead};
-        use escape_state_e::*;
 
         let mut reader = BufReader::new(file?);
         let mut line_index = 0;
-        let mut escape_state:escape_state_e = ESCAPE_STATE_OUT;
+        let mut escape_state:EscapeState = EscapeState::Out;
 
         let Settings {
             flag: pattern,
@@ -540,13 +531,13 @@ fn main() -> Result<(),QueercatFatalError>
 
                 find_escape_sequences(current_char, &mut escape_state);
 
-                if escape_state == ESCAPE_STATE_OUT {
+                if escape_state == EscapeState::Out {
                     print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset);
                 }
 
                 print!("{current_char}");
 
-                if escape_state == ESCAPE_STATE_LAST {
+                if escape_state == EscapeState::Last {
                     print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset);
                 }
             }
