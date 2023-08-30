@@ -1,7 +1,7 @@
 mod flags;
 use flags::FLAGS;
 
-const ESCAPE_CHAR:char = '\x1b'; //'\033'
+const ESCAPE_CHAR: char = '\x1b'; //'\033'
 
 struct FlagDefinition {
     name: &'static str,
@@ -27,17 +27,11 @@ enum ColorPattern_24bit {
 }
 
 struct ColorStripes_24bit {
-    stripes:  &'static [u32],
+    stripes: &'static [u32],
     factor: f32,
 }
-impl ColorStripes_24bit {
-    fn stripe_count(&self) -> usize {
-        self.stripes.len()
-    }
-}
 
-fn lookup_pattern(name:&str) -> Option<&'static FlagDefinition>
-{
+fn lookup_pattern(name: &str) -> Option<&'static FlagDefinition> {
     FLAGS.iter().find(|f| f.name == name)
         .or_else(|| {
             let n:usize = str::parse(name).ok()
@@ -46,15 +40,12 @@ fn lookup_pattern(name:&str) -> Option<&'static FlagDefinition>
         })
 }
 
-fn print_version() -> ()
-{
-// TODO update this
-    print!("queercat version 2.0, (c) 2022 elsa002\n");
+fn print_version() {
+    println!("queercat-rust version 1.0, (c) 2023 solarshado");
 }
 
 //fn build_helpstr() -> &'static str
-fn build_helpstr() -> String
-{
+fn build_helpstr() -> String {
     //
     // consider instead:
     // https://stackoverflow.com/a/32956193/
@@ -68,7 +59,8 @@ fn build_helpstr() -> String
         "Concatenate FILE(s), or standard input, to standard output.\n",
         "With no FILE, or when FILE is -, read standard input.\n",
         "\n",
-        "                --flag <d>, -f <d>: Choose colors to use (default: 0 (rainbow)):\n"];
+        "                --flag <d>, -f <d>: Choose colors to use (default: 0 (rainbow)):\n"
+    ];
 
     let helpstr_indent = "                                      ";
 
@@ -90,11 +82,11 @@ fn build_helpstr() -> String
         "  queercat            Copy standard input to standard output.\n",
         "  fortune | queercat  Display a rainbow cookie.\n",
         "\n",
-//        todo!["update this footer"]
-        "Report queercat bugs to <https://github.com/elsa002/queercat/issues>\n",
-        "queercat home page: <https://github.com/elsa002/queercat/>\n",
-        "base for code: <https://github.com/jaseg/lolcat/>\n",
-        "Original idea: <https://github.com/busyloop/lolcat/>\n"];
+        "Report bugs to <https://github.com/solarshado/queercat-rust/issues>\n",
+        "queercat-rust home page: <https://github.com/solarshado/queercat-rust/>\n",
+        "base for code: <https://github.com/elsa002/queercat/>\n",
+        "Original idea: <https://github.com/busyloop/lolcat/>\n"
+    ];
 
     /* TODO from C version:
      * old version of what this generates, for reference:
@@ -105,8 +97,10 @@ fn build_helpstr() -> String
      * more clever than I currently feel like trying to be
      */
 
-    let helpstr_flag_list:String =
-        FLAGS.iter().enumerate().map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name)).collect();
+    let helpstr_flag_list =
+        FLAGS.iter().enumerate()
+        .map(|(i,e)| format!("{helpstr_indent}{0}: {i}\n",e.name))
+        .collect::<String>();
 
     format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail]
 }
@@ -118,8 +112,7 @@ struct Color_24bit {
 }
 
 // TODO rewrite to return instead of use &mut
-fn mix_colors(color1:u32, color2:u32, balance:f32, factor:f32, output_color:&mut Color_24bit)
-{
+fn mix_colors(color1: u32, color2: u32, balance: f32, factor: f32, output_color: &mut Color_24bit) {
     let red_1   = ((color1 & 0xff0000) >> 16) as f32;
     let green_1 = ((color1 & 0x00ff00) >>  8) as f32;
     let blue_1  = ((color1 & 0x0000ff) >>  0) as f32;
@@ -135,17 +128,19 @@ fn mix_colors(color1:u32, color2:u32, balance:f32, factor:f32, output_color:&mut
     output_color.blue = (blue_1 * balance + blue_2 * (1.0 - balance)).round() as u8;
 }
 
-fn clamp_theta(mut theta:f32) -> f32
-{
+fn clamp_theta(mut theta: f32) -> f32 {
     use std::f32::consts::PI;
-    while theta < 0.0 { theta += 2.0 * PI; }
-    while theta >= 2.0 * PI { theta -= 2.0 * PI; }
+    while theta < 0.0 {
+        theta += 2.0 * PI;
+    }
+    while theta >= 2.0 * PI {
+        theta -= 2.0 * PI;
+    }
     theta
 }
 
 // TODO rewrite to return instead of use &mut
-fn get_color_rainbow(theta:f32, color:&mut Color_24bit)
-{
+fn get_color_rainbow(theta: f32, color: &mut Color_24bit) {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
 
@@ -156,8 +151,7 @@ fn get_color_rainbow(theta:f32, color:&mut Color_24bit)
 }
 
 // TODO rewrite to return instead of use &mut
-fn get_color_stripes(color_pattern:&ColorStripes_24bit, theta:f32, color:&mut Color_24bit)
-{
+fn get_color_stripes(color_pattern: &ColorStripes_24bit, theta: f32, color: &mut Color_24bit) {
     use std::f32::consts::PI;
     let theta = clamp_theta(theta);
 
@@ -178,8 +172,7 @@ fn get_color_stripes(color_pattern:&ColorStripes_24bit, theta:f32, color:&mut Co
                 let next_i = i + 1;
                 if next_i >= stripe_count {
                     stripes[0]
-                }
-                else {
+                } else {
                     stripes[next_i]
                 }
             };
@@ -195,35 +188,31 @@ fn get_color_stripes(color_pattern:&ColorStripes_24bit, theta:f32, color:&mut Co
     }
 }
 
-fn print_color(pattern:&FlagDefinition, color_type:&OutputColorType, char_index:u32, line_index:u32, freq_h:f32, freq_v:f32, offx:f32, rand_offset:i32)
+fn print_color(pattern: &FlagDefinition, color_type: &OutputColorType, char_index: u32, line_index: u32, freq_h: f32, freq_v: f32, offx: f32, rand_offset: i32)
 {
     use self::OutputColorType::*;
-    use std::f32::{MAX as f32MAX, consts::PI};
+    use std::f32::{consts::PI, MAX as f32MAX};
 
     // TODO can we make this less gross?
-    let char_index_f:f32 = char_index as f32;
-    let line_index_f:f32 = line_index as f32;
-//    let offx_f:f32 = offx as f32;
-    let rand_offset_f:f32 = rand_offset as f32;
-
-    let theta:f32;
-    let mut color:Color_24bit = Color_24bit { red: 0, green: 0, blue:0 };
-
-    let mut cc:i32 = -1;
-    let ncc:i32;
+    let char_index_f: f32 = char_index as f32;
+    let line_index_f: f32 = line_index as f32;
+//    let offx_f: f32 = offx as f32;
+    let rand_offset_f: f32 = rand_offset as f32;
 
     match color_type {
         TwentyFourBit => {
-            theta = char_index_f * freq_h / 5.0 +
-                line_index_f * freq_v +
-                (offx + 2.0 * rand_offset_f / f32MAX) * PI;
+            let mut color = Color_24bit { red: 0, green: 0, blue:0 };
+            let theta =
+                char_index_f * freq_h / 5.0
+                + line_index_f * freq_v
+                + (offx + 2.0 * rand_offset_f / f32MAX) * PI;
 
             use ColorPattern_24bit::*;
             match &pattern.color_pattern {
                 Rainbow =>
                     get_color_rainbow(theta, &mut color),
                 Stripes(patt) =>
-                    get_color_stripes(&patt, theta, &mut color),
+                    get_color_stripes(patt, theta, &mut color),
             }
 
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
@@ -231,12 +220,16 @@ fn print_color(pattern:&FlagDefinition, color_type:&OutputColorType, char_index:
 
         Ansii => {
             let pat_code_count = pattern.ansii_pattern.codes_count();
-            ncc = ((offx * (pat_code_count as f32)).round() as i32) +
-                ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
+            let pat_codes = pattern.ansii_pattern.ansii_codes();
+
+            let mut cc = -1;
+            let ncc = ((offx * (pat_code_count as f32)).round() as i32)
+                + ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
+
             if cc != ncc {
                 cc = ncc;
-                print!("{}[38;5;{}m", ESCAPE_CHAR,
-                       pattern.ansii_pattern.ansii_codes()[((rand_offset + cc) % pat_code_count as i32) as usize]);
+                let code_index = ((rand_offset + cc) % pat_code_count as i32) as usize;
+                print!("{}[38;5;{}m", ESCAPE_CHAR, pat_codes[code_index]);
             }
         }
     }
@@ -250,8 +243,7 @@ enum EscapeState {
 }
 
 // TODO rewrite to return instead of use &mut
-fn find_escape_sequences(current_char:char, state:&mut EscapeState)
-{
+fn find_escape_sequences(current_char: char, state: &mut EscapeState) {
     if current_char == ESCAPE_CHAR {
         *state = EscapeState::In;
     } else if *state == EscapeState::In {
@@ -297,7 +289,7 @@ enum OutputColorType {
 // TODO move these defaults somewhere better/that helpstr can see
 impl Default for Settings {
     fn default() -> Self {
-        use std::io::{stdout,IsTerminal};
+        use std::io::{stdout, IsTerminal};
         let color_default = stdout().is_terminal();
         Settings {
             file_names: Vec::new(),
@@ -314,7 +306,7 @@ impl Default for Settings {
     }
 }
 
-fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArgsFail> {
+fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Settings, ParseArgsFail> {
     let _ = args.next(); // discard exename in first element
 
     macro_rules! usage {
@@ -324,12 +316,12 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
     }
     macro_rules! next_arg_for {
         ($flag:ident) => {
-            args.next().ok_or(usage!["'{}' option requires an argument!",$flag])
+            args.next().ok_or(usage!["'{}' option requires an argument!", $flag])
         };
     }
     macro_rules! badval {
         ($val:expr,$flag:ident) => {
-            usage!["Invalid {} value: {}",$flag,$val]
+            usage!["Invalid {} value: {}", $flag, $val]
         };
     }
 
@@ -347,51 +339,51 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
                     let next = next_arg_for!(flag)?;
                     settings.flag = lookup_pattern(next.as_str())
                         .ok_or_else(|| badval![next,flag])?;
-                },
+                }
                 "-h" | "--horizontal-frequency" => {
                     let next = next_arg_for!(flag)?;
                     settings.horiz_freq = next.parse()
                         .map_err(|_| badval![next,flag])?;
-                },
+                }
                 "-v" | "--vertical-frequency" => {
                     let next = next_arg_for!(flag)?;
                     settings.vert_freq = next.parse()
                         .map_err(|_| badval![next,flag])?;
-                },
+                }
                 "-o" | "--offset" => {
                     let next = next_arg_for!(flag)?;
                     settings.horiz_offset = next.parse()
                         .map_err(|_| badval![next,flag])?;
-                },
+                }
                 "-F" | "--force-color" => {
                     settings.enable_color = true;
-                },
+                }
 //                "-l" | "--no-force-locale" => {
 //                    settings.force_locale = false;
-//                },
+//                }
                 "-r" | "--random" => {
                     settings.enable_rand_offset = true;
-                },
+                }
                 "-b" | "--24bit" => {
                     settings.color_type = OutputColorType::TwentyFourBit;
-                },
+                }
                 "--help" => {
                     settings.print_help = true;
-                },
+                }
                 "--version" => {
-                    Err(PrintVersion)?;
-                },
+                    return Err(PrintVersion);
+                }
                 "-" => {
                     settings.file_names.push(arg);
-                },
+                }
                 "--" => {
                     settings.file_names.extend(args);
                     break; // above consumes the rest of args, and borrows args
-                },
-                _ => {
-                    Err(usage!["Unknown option: {flag}"])?;
                 }
-            },
+                _ => {
+                    return Err(usage!["Unknown option: {flag}"]);
+                }
+            }
             _ => {
                 settings.file_names.push(arg);
             }
@@ -399,53 +391,53 @@ fn parse_args(mut args:impl Iterator<Item = String>) -> Result<Settings,ParseArg
     }
 
     // read stdin if no files specified
-    if settings.file_names.len() == 0 {
+    if settings.file_names.is_empty() {
         settings.file_names.push("-".into());
     }
 
     Ok(settings)
 }
 
-enum QueercatFatalError
-{
+enum QueercatFatalError {
     BadCommandLine(String),
     IoError(std::io::Error)
 }
 
-impl From<std::io::Error> for QueercatFatalError
-{
+impl From<std::io::Error> for QueercatFatalError {
     fn from(value: std::io::Error) -> Self {
         QueercatFatalError::IoError(value)
     }
 }
 
-impl std::fmt::Debug for QueercatFatalError
-{
+impl std::fmt::Debug for QueercatFatalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use QueercatFatalError::*;
         match self {
             BadCommandLine(msg) => {
-                writeln!(f,"{}",msg)?;
+                writeln!(f, "{}", msg)?;
                 writeln!(f, "Try 'queercat --help' for more information.")
-            },
-            IoError(e) => e.fmt(f)
+            }
+            IoError(e) => e.fmt(f),
         }
     }
 }
 
-fn main() -> Result<(),QueercatFatalError>
-{
+fn main() -> Result<(), QueercatFatalError> {
     let settings = match parse_args(std::env::args()) {
         Ok(s) => s,
         Err(ParseArgsFail::PrintUsage(msg)) =>
             return Err(QueercatFatalError::BadCommandLine(msg)),
-        Err(ParseArgsFail::PrintVersion) => return Ok(print_version()),
+        Err(ParseArgsFail::PrintVersion) => {
+            print_version();
+            return Ok(());
+        }
     };
 
-    let rand_offset =
-        if settings.enable_rand_offset {
-            get_fake_random() as i32
-        } else { 0 };
+    let rand_offset = if settings.enable_rand_offset {
+        get_fake_random() as i32
+    } else {
+        0
+    };
 
     //struct timeval tv;
     //gettimeofday(&tv, NULL);
@@ -481,13 +473,13 @@ fn main() -> Result<(),QueercatFatalError>
     }
     */
 
-    use std::io::{self,Read};
     use std::fs::File;
+    use std::io::{self, Read};
 
-    let files: Box<dyn Iterator<Item=io::Result<Box<dyn Read>>>> =
+    let files: Box<dyn Iterator<Item = io::Result<Box<dyn Read>>>> =
         if settings.print_help
         {
-            let r:Box<dyn Read> = Box::new(io::Cursor::new(build_helpstr()));
+            let r: Box<dyn Read> = Box::new(io::Cursor::new(build_helpstr()));
             Box::new(std::iter::once(Ok(r)))
         }
         else
@@ -504,15 +496,15 @@ fn main() -> Result<(),QueercatFatalError>
     for file in files {
         if !settings.enable_color {
             let mut reader = file?;
-            let _ = io::copy(&mut reader,&mut io::stdout())?;
+            let _ = io::copy(&mut reader, &mut io::stdout())?;
             continue;
         }
 
-        use std::io::{BufReader,BufRead};
+        use std::io::{BufRead, BufReader};
 
         let mut reader = BufReader::new(file?);
         let mut line_index = 0;
-        let mut escape_state:EscapeState = EscapeState::Out;
+        let mut escape_state = EscapeState::Out;
 
         let Settings {
             flag: pattern,
@@ -520,11 +512,14 @@ fn main() -> Result<(),QueercatFatalError>
             vert_freq: freq_v,
             horiz_offset: offx,
             ref color_type,
-            ..} = settings;
+            ..
+        } = settings;
 
-        let mut line:String = Default::default();
+        let mut line: String = Default::default();
         while let Ok(read) = reader.read_line(&mut line) {
-            if read == 0 { break; }
+            if read == 0 {
+                break;
+            }
 
             for (char_index, current_char) in line.chars().enumerate() {
                 let char_index = char_index as u32;
@@ -545,7 +540,7 @@ fn main() -> Result<(),QueercatFatalError>
             line_index += 1;
             line.clear();
         }
-        print!("{}[0m",ESCAPE_CHAR);
+        print!("{}[0m", ESCAPE_CHAR);
     }
 
     Ok(())
