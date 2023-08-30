@@ -52,7 +52,7 @@ fn build_helpstr() -> String {
     //
     //use const_format::*;
 
-    // TODO pull the mentioned defaults here from the actual defaults used instead of repeating
+    // TODO use Settings::DEFAULT_mumble directly instead of repeating the values
     let helpstr_head = concat![
         "Usage: queercat [OPTION...] [--] [FILE...]\n",
         "\n",
@@ -281,29 +281,36 @@ struct Settings {
     print_help: bool, // default false, ignores file_names if true
 }
 
-enum OutputColorType {
-    Ansii,
-    TwentyFourBit,
+impl Settings {
+    const DEFAULT_FLAG_INDEX: usize = 0;
+    const DEFAULT_H_FREQ: f32 = 0.23;
+    const DEFAULT_V_FREQ: f32 = 0.1;
+    const DEFAULT_COLOR_TYPE: OutputColorType = OutputColorType::Ansii;
+    const DEFAULT_ENABLE_RAND_OFFSET: bool = false;
 }
 
-// TODO move these defaults somewhere better/that helpstr can see
 impl Default for Settings {
     fn default() -> Self {
         use std::io::{stdout, IsTerminal};
         let color_default = stdout().is_terminal();
         Settings {
             file_names: Vec::new(),
-            flag: &FLAGS[0],
-            horiz_freq: 0.23,
-            vert_freq: 0.1,
+            flag: &FLAGS[Settings::DEFAULT_FLAG_INDEX],
+            horiz_freq: Settings::DEFAULT_H_FREQ,
+            vert_freq: Settings::DEFAULT_V_FREQ,
             horiz_offset: ((get_fake_random() % 300) / 300) as f32, // magic numbers from original version
             enable_color: color_default,
 //            force_locale: true,
-            color_type: OutputColorType::Ansii,
-            enable_rand_offset: false,
+            color_type: Settings::DEFAULT_COLOR_TYPE,
+            enable_rand_offset: Settings::DEFAULT_ENABLE_RAND_OFFSET,
             print_help: false,
         }
     }
+}
+
+enum OutputColorType {
+    Ansii,
+    TwentyFourBit,
 }
 
 fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Settings, ParseArgsFail> {
