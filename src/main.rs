@@ -12,14 +12,6 @@ struct FlagDefinition {
 // TODO? replace below struct with:
 //type ansii_pattern_t = &'static [u8];
 struct ColorPattern_Ansii(&'static [u8]);
-impl ColorPattern_Ansii {
-    fn codes_count(&self) -> usize {
-        self.0.len()
-    }
-    fn ansii_codes(&self) -> &[u8] {
-        self.0
-    }
-}
 
 enum ColorPattern_24bit {
     Rainbow,
@@ -219,8 +211,8 @@ fn print_color(pattern: &FlagDefinition, color_type: &OutputColorType, char_inde
         },
 
         Ansii => {
-            let pat_code_count = pattern.ansii_pattern.codes_count();
-            let pat_codes = pattern.ansii_pattern.ansii_codes();
+            let pat_codes = pattern.ansii_pattern.0;
+            let pat_code_count = pat_codes.len();
 
             let mut cc = -1;
             let ncc = ((offx * (pat_code_count as f32)).round() as i32)
