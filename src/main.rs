@@ -94,6 +94,18 @@ mod twenty_four_bit_color {
         Stripes(ColorStripes)
     }
 
+    impl ColorPattern {
+        pub(super) fn get_color(&self, theta: f32) -> RGBColor {
+            use ColorPattern::*;
+            match self {
+                Rainbow =>
+                    get_color_rainbow(theta),
+                Stripes(patt) =>
+                    get_color_stripes(patt, theta),
+            }
+        }
+    }
+
     pub(super) struct ColorStripes {
         pub stripes: &'static [u32],
         pub factor: f32,
@@ -143,7 +155,7 @@ mod twenty_four_bit_color {
         theta
     }
 
-    pub(super) fn get_color_rainbow(theta: f32) -> RGBColor {
+    fn get_color_rainbow(theta: f32) -> RGBColor {
         use std::f32::consts::PI;
         let theta = clamp_theta(theta);
 
@@ -159,7 +171,7 @@ mod twenty_four_bit_color {
         RGBColor { red, green, blue }
     }
 
-    pub(super) fn get_color_stripes(color_pattern: &ColorStripes, theta: f32) -> RGBColor {
+    fn get_color_stripes(color_pattern: &ColorStripes, theta: f32) -> RGBColor {
         use std::f32::consts::PI;
         let theta = clamp_theta(theta);
 
@@ -205,19 +217,12 @@ fn print_color(pattern: &FlagDefinition, color_type: &OutputColorType, char_inde
 
     match color_type {
         TwentyFourBit => {
-            use twenty_four_bit_color::{*, ColorPattern::*};
-
             let theta =
                 char_index_f * freq_h / 5.0
                 + line_index_f * freq_v
                 + (offx + 2.0 * rand_offset_f / f32MAX) * PI;
 
-            let color = match &pattern.color_pattern {
-                Rainbow =>
-                    get_color_rainbow(theta),
-                Stripes(patt) =>
-                    get_color_stripes(patt, theta),
-            };
+            let color = pattern.color_pattern.get_color(theta);
 
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
         },
@@ -226,15 +231,11 @@ fn print_color(pattern: &FlagDefinition, color_type: &OutputColorType, char_inde
             let pat_codes = pattern.ansii_pattern.0;
             let pat_code_count = pat_codes.len();
 
-            let mut cc = -1;
             let ncc = ((offx * (pat_code_count as f32)).round() as i32)
                 + ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
 
-            if cc != ncc {
-                cc = ncc;
-                let code_index = ((rand_offset + cc) % pat_code_count as i32) as usize;
-                print!("{}[38;5;{}m", ESCAPE_CHAR, pat_codes[code_index]);
-            }
+            let code_index = (rand_offset + ncc) as usize % pat_code_count;
+            print!("{}[38;5;{}m", ESCAPE_CHAR, pat_codes[code_index]);
         }
     }
 }
