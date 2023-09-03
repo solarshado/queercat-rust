@@ -1,13 +1,14 @@
-use crate::{FlagDefinition, ColorStripes_24bit, ColorPattern_24bit, ColorPattern_Ansii};
+use crate::{FlagDefinition, ColorPattern_Ansii};
+use crate::twenty_four_bit_color::{ColorPattern, ColorStripes};
 
-pub(crate) const FLAGS:&[FlagDefinition] = &[
+pub(crate) const FLAGS: &[FlagDefinition] = &[
     FlagDefinition {
         name: "rainbow",
         ansii_pattern: ColorPattern_Ansii (
              &[ 39, 38, 44, 43, 49, 48, 84, 83, 119, 118, 154, 148, 184, 178,
                 214, 208, 209, 203, 204, 198, 199, 163, 164, 128, 129, 93, 99, 63, 69, 33 ]
         ),
-        color_pattern: ColorPattern_24bit::Rainbow
+        color_pattern: ColorPattern::Rainbow
     },
 
     FlagDefinition {
@@ -15,7 +16,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[81, 81, 217, 217,  231, 231,  217, 217,  81, 81]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0x55cdfc, /* #55cdfc - Blue */
                 0xf7a8b8, /* #f7a8b8 - Pink */
@@ -32,7 +33,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[226, 226, 255, 255, 93, 93, 234, 234]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xffff00, /* #ffff00 - Yellow */
                 0xb000ff, /* #b000ff - Purple */
@@ -48,7 +49,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[196, 208, 255, 170, 128]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xff0000, /* #ff0000 - Red */
                 0xff993f, /* #ff993f - Orange */
@@ -65,7 +66,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[36, 49, 121, 255, 117, 105, 92]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0x00b685, /* #00b685 - Teal */
                 0x6bffb6, /* #6bffb6 - Green */
@@ -82,7 +83,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[200, 200, 200,  227, 227, 227,  45, 45, 45]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xff3388, /* #ff3388 - Pink */
                 0xffea00, /* #ffea00 - Yellow */
@@ -97,7 +98,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[162, 162, 162,  129, 129, 27, 27, 27]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xff3b7b, /* #ff3b7b - Pink */
                 0xff3b7b, /* #ff3b7b - Pink */
@@ -114,7 +115,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[219, 219, 255, 255, 128, 128, 234, 234, 20, 20]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xffa0bc, /* #ffa0bc - Pink */
                 0xffffff, /* #ffffff - White */
@@ -131,7 +132,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[233, 233, 247, 247, 255, 255, 5, 5]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0x000000, /* #000000 - Black */
                 0xa3a3a3, /* #a3a3a3 - Gray */
@@ -147,7 +148,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
         ansii_pattern: ColorPattern_Ansii (
             &[194, 194, 255, 255, 195, 195, 223, 223]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xe6f9e3, /* #e6f9e3 - Green */
                 0xfdfdfb, /* #fdfdfb - White */
@@ -169,7 +170,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
                 233, 233
             ]
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0x3da542, /* #3da542 - Green        */
                 0xa8d379, /* #a8d379 - Light green  */
@@ -192,7 +193,7 @@ pub(crate) const FLAGS:&[FlagDefinition] = &[
                 62, 62
             ],
         ),
-        color_pattern: ColorPattern_24bit::Stripes(ColorStripes_24bit {
+        color_pattern: ColorPattern::Stripes(ColorStripes {
             stripes: &[
                 0xe28d00, /* #e28d00 - Orange     */
                 0xeccd00, /* #eccd00 - Yellow     */

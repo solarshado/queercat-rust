@@ -6,22 +6,12 @@ const ESCAPE_CHAR: char = '\x1b'; //'\033'
 struct FlagDefinition {
     name: &'static str,
     ansii_pattern: ColorPattern_Ansii,
-    color_pattern: ColorPattern_24bit,
+    color_pattern: twenty_four_bit_color::ColorPattern,
 }
 
 // TODO? replace below struct with:
 //type ansii_pattern_t = &'static [u8];
 struct ColorPattern_Ansii(&'static [u8]);
-
-enum ColorPattern_24bit {
-    Rainbow,
-    Stripes(ColorStripes_24bit)
-}
-
-struct ColorStripes_24bit {
-    stripes: &'static [u32],
-    factor: f32,
-}
 
 fn lookup_pattern(name: &str) -> Option<&'static FlagDefinition> {
     FLAGS.iter().find(|f| f.name == name)
@@ -97,86 +87,108 @@ fn build_helpstr() -> String {
     format!["{}{}{}", helpstr_head, helpstr_flag_list, helpstr_tail]
 }
 
-struct Color_24bit {
-    red: u8,
-    green: u8,
-    blue: u8,
-}
+mod twenty_four_bit_color {
 
-// TODO rewrite to return instead of use &mut
-fn mix_colors(color1: u32, color2: u32, balance: f32, factor: f32, output_color: &mut Color_24bit) {
-    let red_1   = ((color1 & 0xff0000) >> 16) as f32;
-    let green_1 = ((color1 & 0x00ff00) >>  8) as f32;
-    let blue_1  = ((color1 & 0x0000ff) >>  0) as f32;
-
-    let red_2   = ((color2 & 0xff0000) >> 16) as f32;
-    let green_2 = ((color2 & 0x00ff00) >>  8) as f32;
-    let blue_2  = ((color2 & 0x0000ff) >>  0) as f32;
-
-    let balance = balance.powf(factor);
-
-    output_color.red = (red_1 * balance + red_2 * (1.0 - balance)).round() as u8;
-    output_color.green = (green_1 * balance + green_2 * (1.0 - balance)).round() as u8;
-    output_color.blue = (blue_1 * balance + blue_2 * (1.0 - balance)).round() as u8;
-}
-
-fn clamp_theta(mut theta: f32) -> f32 {
-    use std::f32::consts::PI;
-    while theta < 0.0 {
-        theta += 2.0 * PI;
+    pub(super) enum ColorPattern {
+        Rainbow,
+        Stripes(ColorStripes)
     }
-    while theta >= 2.0 * PI {
-        theta -= 2.0 * PI;
+
+    pub(super) struct ColorStripes {
+        pub stripes: &'static [u32],
+        pub factor: f32,
     }
-    theta
-}
 
-// TODO rewrite to return instead of use &mut
-fn get_color_rainbow(theta: f32, color: &mut Color_24bit) {
-    use std::f32::consts::PI;
-    let theta = clamp_theta(theta);
+    pub(super) struct RGBColor {
+        pub red: u8,
+        pub green: u8,
+        pub blue: u8,
+    }
 
-    /* Generate the color. */
-    color.red   = ((1.0 * (0.5 + 0.5 * (theta + 0.0            ).sin())) * 255.0).round() as u8;
-    color.green = ((1.0 * (0.5 + 0.5 * (theta + 2.0 * PI / 3.0 ).sin())) * 255.0).round() as u8;
-    color.blue  = ((1.0 * (0.5 + 0.5 * (theta + 4.0 * PI / 3.0 ).sin())) * 255.0).round() as u8;
-}
+    fn mix_colors(color1: u32, color2: u32, balance: f32, factor: f32) -> RGBColor {
+        let balance = balance.powf(factor);
 
-// TODO rewrite to return instead of use &mut
-fn get_color_stripes(color_pattern: &ColorStripes_24bit, theta: f32, color: &mut Color_24bit) {
-    use std::f32::consts::PI;
-    let theta = clamp_theta(theta);
-
-    let stripes = color_pattern.stripes;
-    let stripe_count = stripes.len();
-
-    // TODO? can this be calcualted directly w/out the loop?
-    /* Find the stripe based on theta and generate the color. */
-    let stripe_size = (2.0 * PI) / stripe_count as f32;
-    for i in 0..stripe_count {
-        let min_theta = i as f32 * stripe_size;
-        let max_theta = (i + 1) as f32 * stripe_size;
-
-        if min_theta <= theta && max_theta > theta {
-            let balance = 1.0 - ((theta - min_theta) / stripe_size);
-
-            let next_color = {
-                let next_i = i + 1;
-                if next_i >= stripe_count {
-                    stripes[0]
-                } else {
-                    stripes[next_i]
-                }
-            };
-
-            mix_colors(
-                    stripes[i],
-                    next_color,
-                    balance,
-                    color_pattern.factor,
-                    color);
-            return;
+        #[allow(clippy::identity_op)]
+        fn to_components(color: u32) -> [f32; 3] {
+            let red   = ((color & 0xff0000) >> 16) as f32;
+            let green = ((color & 0x00ff00) >>  8) as f32;
+            let blue  = ((color & 0x0000ff) >>  0) as f32;
+            [red, green, blue]
         }
+
+        fn mix(c1: f32, c2: f32, balance: f32) -> u8 {
+            (c1 * balance + c2 * (1.0 - balance)).round() as u8
+        }
+
+        let [r1, g1, b1] = to_components(color1);
+        let [r2, g2, b2] = to_components(color2);
+
+        let (red, green, blue) = (
+            mix(r1, r2, balance),
+            mix(g1, g2, balance),
+            mix(b1, b2, balance),
+        );
+
+        RGBColor { red, green, blue }
+    }
+
+    fn clamp_theta(mut theta: f32) -> f32 {
+        use std::f32::consts::PI;
+        while theta < 0.0 {
+            theta += 2.0 * PI;
+        }
+        while theta >= 2.0 * PI {
+            theta -= 2.0 * PI;
+        }
+        theta
+    }
+
+    pub(super) fn get_color_rainbow(theta: f32) -> RGBColor {
+        use std::f32::consts::PI;
+        let theta = clamp_theta(theta);
+
+        let gen_color_component = |offset_factor: f32| -> u8 {
+            ((1.0 * (0.5 + 0.5 * (theta + offset_factor * PI / 3.0).sin())) * 255.0).round() as u8
+        };
+
+        /* Generate the color. */
+        let red = gen_color_component(0.0);
+        let green = gen_color_component(2.0);
+        let blue = gen_color_component(4.0);
+
+        RGBColor { red, green, blue }
+    }
+
+    pub(super) fn get_color_stripes(color_pattern: &ColorStripes, theta: f32) -> RGBColor {
+        use std::f32::consts::PI;
+        let theta = clamp_theta(theta);
+
+        let stripes = color_pattern.stripes;
+        let stripe_count = stripes.len();
+
+        // TODO figure out how to calcualte this directly, w/out the loop
+        /* Find the stripe based on theta and generate the color. */
+        let stripe_size = (2.0 * PI) / stripe_count as f32;
+        for i in 0..stripe_count {
+            let min_theta = i as f32 * stripe_size;
+            let max_theta = (i + 1) as f32 * stripe_size;
+
+            if min_theta <= theta && max_theta > theta {
+                let balance = 1.0 - ((theta - min_theta) / stripe_size);
+
+                let next_color = {
+                    let next_i = i + 1;
+                    if next_i >= stripe_count {
+                        stripes[0]
+                    } else {
+                        stripes[next_i]
+                    }
+                };
+
+                return mix_colors(stripes[i], next_color, balance, color_pattern.factor);
+            }
+        }
+        panic!["never found a color"];
     }
 }
 
@@ -193,19 +205,19 @@ fn print_color(pattern: &FlagDefinition, color_type: &OutputColorType, char_inde
 
     match color_type {
         TwentyFourBit => {
-            let mut color = Color_24bit { red: 0, green: 0, blue:0 };
+            use twenty_four_bit_color::{*, ColorPattern::*};
+
             let theta =
                 char_index_f * freq_h / 5.0
                 + line_index_f * freq_v
                 + (offx + 2.0 * rand_offset_f / f32MAX) * PI;
 
-            use ColorPattern_24bit::*;
-            match &pattern.color_pattern {
+            let color = match &pattern.color_pattern {
                 Rainbow =>
-                    get_color_rainbow(theta, &mut color),
+                    get_color_rainbow(theta),
                 Stripes(patt) =>
-                    get_color_stripes(patt, theta, &mut color),
-            }
+                    get_color_stripes(patt, theta),
+            };
 
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
         },
