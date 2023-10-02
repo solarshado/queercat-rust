@@ -204,35 +204,40 @@ mod twenty_four_bit_color {
     }
 }
 
-fn print_color(pattern: &FlagDefinition, color_type: &OutputColorType, char_index: u32, line_index: u32, freq_h: f32, freq_v: f32, offx: f32, rand_offset: i32)
-{
+fn print_color(settings: &Settings, char_index: u32, line_index: u32, rand_offset: i32) {
     use self::OutputColorType::*;
     use std::f32::{consts::PI, MAX as f32MAX};
+
+    let Settings {
+        flag,
+        horiz_freq,
+        vert_freq,
+        horiz_offset,
+        ..
+    } = settings;
 
     // TODO can we make this less gross?
     let char_index_f: f32 = char_index as f32;
     let line_index_f: f32 = line_index as f32;
-//    let offx_f: f32 = offx as f32;
-    let rand_offset_f: f32 = rand_offset as f32;
 
-    match color_type {
+    match settings.color_type {
         TwentyFourBit => {
             let theta =
-                char_index_f * freq_h / 5.0
-                + line_index_f * freq_v
-                + (offx + 2.0 * rand_offset_f / f32MAX) * PI;
+                char_index_f * horiz_freq / 5.0
+                + line_index_f * vert_freq
+                + (horiz_offset + 2.0 * rand_offset as f32 / f32MAX) * PI;
 
-            let color = pattern.color_pattern.get_color(theta);
+            let color = flag.color_pattern.get_color(theta);
 
             print!("{}[38;2;{};{};{}m", ESCAPE_CHAR, color.red, color.green, color.blue);
         },
 
         Ansii => {
-            let pat_codes = pattern.ansii_pattern.0;
+            let pat_codes = flag.ansii_pattern.0;
             let pat_code_count = pat_codes.len();
 
-            let ncc = ((offx * (pat_code_count as f32)).round() as i32)
-                + ((char_index_f * freq_h + line_index_f * freq_v).trunc() as i32);
+            let ncc = ((horiz_offset * (pat_code_count as f32)).round() as i32)
+                + ((char_index_f * horiz_freq + line_index_f * vert_freq).trunc() as i32);
 
             let code_index = (rand_offset + ncc) as usize % pat_code_count;
             print!("{}[38;5;{}m", ESCAPE_CHAR, pat_codes[code_index]);
@@ -517,15 +522,6 @@ fn main() -> Result<(), QueercatFatalError> {
         let mut line_index = 0;
         let mut escape_state = EscapeState::Out;
 
-        let Settings {
-            flag: pattern,
-            horiz_freq: freq_h,
-            vert_freq: freq_v,
-            horiz_offset: offx,
-            ref color_type,
-            ..
-        } = settings;
-
         let mut line: String = Default::default();
         while let Ok(read) = reader.read_line(&mut line) {
             if read == 0 {
@@ -538,13 +534,13 @@ fn main() -> Result<(), QueercatFatalError> {
                 find_escape_sequences(current_char, &mut escape_state);
 
                 if escape_state == EscapeState::Out {
-                    print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset);
+                    print_color(&settings, char_index, line_index, rand_offset);
                 }
 
                 print!("{current_char}");
 
                 if escape_state == EscapeState::Last {
-                    print_color(pattern, color_type, char_index, line_index, freq_h, freq_v, offx, rand_offset);
+                    print_color(&settings, char_index, line_index, rand_offset);
                 }
             }
 
