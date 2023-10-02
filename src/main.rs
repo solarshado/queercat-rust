@@ -303,7 +303,12 @@ impl Default for Settings {
             flag: &FLAGS[Settings::DEFAULT_FLAG_INDEX],
             horiz_freq: Settings::DEFAULT_H_FREQ,
             vert_freq: Settings::DEFAULT_V_FREQ,
+
+            //struct timeval tv;
+            //gettimeofday(&tv, NULL);
+            //double offx = (tv.tv_sec % 300) / 300.0;
             horiz_offset: ((get_fake_random() % 300) / 300) as f32, // magic numbers from original version
+
             enable_color: color_default,
 //            force_locale: true,
             color_type: Settings::DEFAULT_COLOR_TYPE,
@@ -445,25 +450,19 @@ fn main() -> Result<(), QueercatFatalError> {
         }
     };
 
+    //int rand_offset = 0;
+    //if (random) {
+    //    srand(time(NULL));
+    //    rand_offset = rand();
+    //}
     let rand_offset = if settings.enable_rand_offset {
         get_fake_random() as i32
     } else {
         0
     };
 
-    //struct timeval tv;
-    //gettimeofday(&tv, NULL);
-    //double offx = (tv.tv_sec % 300) / 300.0;
-
-    /* Handle randomness. */
-    //int rand_offset = 0;
-    //if (random) {
-    //    srand(time(NULL));
-    //    rand_offset = rand();
-    //}
-
-    /* Handle locale. */
-    /* // don't *think* we actually need/care about this?
+    /* Handle locale. */ // don't *think* we actually need/care about this?
+    /*
     char* env_lang = getenv("LANG");
     if (force_locale && env_lang && !strstr(env_lang, "UTF-8")) {
         if (!setlocale(LC_ALL, "C.UTF-8")) { /* C.UTF-8 may not be available on all platforms */
@@ -474,7 +473,7 @@ fn main() -> Result<(), QueercatFatalError> {
     }
     */
 
-    /* TODO -- will require modification of print_color
+    /* TODO? revisit this idea of colorizing via an iterator
     fn colorizer(src: impl Iterator<Item = char>, settings: Settings) -> impl Iterator<Item = char>
     {
         let mut n = 0;
